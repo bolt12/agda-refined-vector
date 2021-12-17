@@ -256,8 +256,8 @@ module Attempt3 where
   open import Data.Bool.Base using (T)
 
   -- For my third attempt I am just going to leverage the mutual recursive notation I learned
-  -- And define an inductive data type that tries to merge the best of both attempts.
-  -- Basically one that has the same proof obligation strategy and that is allow us to simplify things.
+  -- and define an inductive data type that tries to merge the best of both attempts.
+  -- Basically one that has the same proof obligation strategy and that allow us to simplify things.
 
 
   -- I start by defining my Vector data type with the same type signature as the previous attempts
@@ -365,60 +365,149 @@ module Attempt3 where
   --     relational proof as well.
   --   - I think most of the troubles come from allowing polymorphic relations,
   --     and getting the weakest relational properties needed to get working.
-  --     So definitely I am not specifying append correctly.
   --   - I didn't go through the trouble of setting up some examples and ended
   --     up finding obstacles that coincided with counterexamples regarding my
   --     intuition on how things should work.
   --   - Only after going through some examples I got enlightned about the
   --     obstacles Agda was giving me:
-  -- 
-  --   Imagine I want to append [a b c] ++ [d e f] and have the following Total
-  --   relation _≾_:
-  --   By construction we have: a ≾ b ≾ c and d ≾ e ≾ f
-  --   So we specify the other relations: 
-  --    f ≾ a, f ≾ b, f ≾ c
-  --    e ≾ a, e ≾ b, e ≾ c
-  --    a ≾ d, d ≾ b, d ≾ c
   --
-  --   Then: [a b c] ++ [d e f] =
+  -- It seems that specializing to Nats helps a little bit and makes it clearer
+  -- why Agda does not like what I am trying to do. 
+  -- 
+  -- append-ℕ : ∀ {m n} {total : Total _≤_}
+  --          → (as : Vector ℕ _≤_ m)
+  --          → (bs : Vector ℕ _≤_ n)
+  --          → Vector ℕ _≤_ (m + n)
   --
-  --    a ≾ d ? yes
-  --    
-  --    a : [b c] ++ [d e f]
-  --    
-  --    b ≾ d ? no
-  --    
-  --    a : d : [b c] ++ [e f] !!! Requires that a ≾ d and that is not true
+  -- It seems that due the way my data type is designed (proof-≾ mentions the Vector
+  -- data type and vice versa), in the recursive case of the append function, I ended
+  -- up with something like this in my goal:
+  --
+  -- _a≾b_409 : proof-≾ a (append-ℕ-aux as (b ∷ bs))
   -- 
-  -- 
-  id-≤  : ∀ m → m ≤ m
-  id-≤ zero = z≤n
-  id-≤ (suc m) = s≤s (id-≤ m)
+  -- Because proof-≾ has a vector as its second argument you end up with the recursive
+  -- call the goal, which is tricky (perhaps impossible) to deal with.
+  --
+  -- So I guess this means I should figure out a better, clever way to design the
+  -- data structure in such a way that does not give Agda such a bad time.
 
-  minimum² : ∀ {m n} {total : Total _≤_}
-           → (as : Vector ℕ _≤_ (1 + m))
-           → (bs : Vector ℕ _≤_ (1 + n))
-           → ℕ
-  minimum² {total = total} (a ∷ as) (b ∷ bs) with total a b
-  ... | inj₁ a≤b = a 
-  ... | inj₂ b≤a = b
+module Attempt5 where
+  
+  open import Data.Nat.Properties using (+-comm; +-identityʳ)
 
-  append-ℕ : ∀ {m n} {total : Total _≤_}
-           → (as : Vector ℕ _≤_ m)
-           → (bs : Vector ℕ _≤_ n)
-           → Vector ℕ _≤_ (m + n)
-  append-ℕ-aux : ∀ {m n r} {total : Total _≤_}
-               → (a : ℕ)
-               → (as : Vector ℕ _≤_ m)
-               → (bs : Vector ℕ _≤_ n)
-               → proof-≾ r (append-ℕ as bs) 
 
-  -- splitAt : ∀ m {n} {A} {_≾_} (xs : Vector A _≾_ (m + n)) →
-  --           ∃₂ λ (ys : Vector A _≾_ m) (zs : Vector A _≾_ n) → xs ≡ ys ++ zs
-  -- splitAt zero    xs                = ([] , xs , refl)
-  -- splitAt (suc m) (x ∷ xs)          with splitAt m xs
-  -- splitAt (suc m) (x ∷ .(ys ++ zs)) | (ys , zs , refl) =
-  --   ((x ∷ ys) , zs , refl)
+  -- Thanks to my friend Sean Seefried, he found the following paper:
+  -- http://www.e-pig.org/downloads/ydtm.pdf
+  --
+  -- Section 5.2 from the paper is exactly what I am after. And from reading it they offer
+  -- a great deal of insight on how to think about problems like these.
+  -- Their idea, although specialized to Nats and restricted to Total orders, is to index
+  -- the Vector type by bounds as well. Which makes sense and it is this little bit of intrinsic
+  -- evidence that makes Agda able to get through the recursive step on append. 
+  --
+  -- Let me show case what they suggest in the paper:
 
-  -- sort : ∀ {n : ℕ} {_≾_ : Rel ℕ _} -> Vector ℕ (_≾_) n -> Vector ℕ (_≤_) n
-  -- sort {n} v = {!!}
+  -- The only difference here is that we require a Total constraint on the order
+  -- and we also index by and arbitrary element of type A (the lower bound).
+  -- This lower bound means that the Vector shall only contain values greater or equal than
+  -- it.
+  data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) (t : Total _≾_) : ℕ → A → Set ℓ where
+    -- The empty vector case does not care what the lower bound is
+    [] : {lowerBound : A} → Vector A _≾_ t 0 lowerBound
+    -- In cons case, the head must exceed the prescribed lower bound and bound the tail in turn.
+    -- This means lowerBound is an open bound.
+    _∷_ : {lowerBound : A} {n : ℕ} → (a : A) → {lowerBound ≾ a} → Vector A _≾_ t n a → Vector A _≾_ t (suc n) lowerBound
+
+  -- Some examples:
+  ≤-total : Total _≤_
+  ≤-total zero zero = inj₁ z≤n
+  ≤-total zero (suc y) = inj₁ z≤n
+  ≤-total (suc x) zero = inj₂ z≤n
+  ≤-total (suc x) (suc y) with ≤-total x y
+  ... | inj₁ x≤y = inj₁ (s≤s x≤y)
+  ... | inj₂ y≤x = inj₂ (s≤s y≤x)
+
+  example1 : Vector ℕ _≤_ ≤-total 3 0
+  example1 = _∷_ 0 {z≤n} (_∷_ 3 {z≤n} (_∷_ 5 {s≤s (s≤s (s≤s z≤n))} []))
+
+  example2 : Vector ℕ _≤_ ≤-total 3 0
+  example2 = _∷_ 2 {z≤n} (_∷_ 4 {s≤s (s≤s z≤n)} (_∷_ 6 {s≤s (s≤s (s≤s (s≤s z≤n)))} []))
+
+  -- Now in the paper, I think they simplify the append (merge) function type signature by requiring
+  -- that the two vectors share the same lower bound, so the result also shares it. I think we might be able
+  -- to get away with being a little more general, but we will let Agda be the judge of that.
+  -- Here's the definition of merge:
+
+  head : ∀ {ℓ} {A} {b : A} {n : ℕ} {_≾_} {total : Total _≾_}→ Vector {ℓ} A _≾_ total (suc n) b → A
+  head (a ∷ _) = a
+  
+  suc-m+n≡m+suc-n : ∀ (m n : ℕ) → (suc m + n) ≡ (m + suc n)
+  suc-m+n≡m+suc-n m n rewrite +-comm m n rewrite +-comm (suc n) m = refl
+  
+  vec2vec : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_} {b : A} {m n : ℕ} → Vector A _≾_ total (suc m + n) b → Vector A _≾_ total (m + suc n) b
+  vec2vec {A = A} {_≾_} {total} {b} {m} {n} v rewrite cong (λ n → Vector A _≾_ total n b) (suc-m+n≡m+suc-n m n) = v
+  
+  merge : ∀ {ℓ} {A} {m n : ℕ} {_≾_} {total : Total _≾_}→ {b : A}
+        → Vector {ℓ} A _≾_ total m b
+        → Vector {ℓ} A _≾_ total n b
+        → Vector {ℓ} A _≾_ total (m + n) b
+  merge {m = zero} _ bs = bs
+  merge {m = m} {zero} as _ rewrite +-identityʳ m = as
+  merge {A = A} {_≾_ = _≾_} {total = total} {b}  (_∷_ x {b≾x} xs ) (_∷_ y {b≾y} ys) with total x y
+  ... | inj₁ x≾y = _∷_ x {b≾x} (merge {b = x}  xs (_∷_ y {x≾y} ys))
+  ... | inj₂ y≾x = _∷_ y {b≾y} (vec2vec  (merge {b = y} (_∷_ x {y≾x} xs) ys))
+
+  -- If I C-c C-n inside this hole I get the correct result!
+  -- example3 : Vector ℕ _≤_ ≤-total 6 0
+  -- example3 = {! merge example1 example2 !} 
+
+  -- As I said above I do not understand why the merge function, in the paper needs the 2 vectors to
+  -- share the lower bound, that seems oddly restrictive, it should be possible to merge 2 vectors of
+  -- arbitrary bounds and then the result type would have the minimum between the two. Looks reasonable,
+  -- right? Another thing I wonder is that we might get away without passing Total in the data type,
+  -- I like it much more we you could keep everything polymorphic and then require Total for append,
+  -- for example.
+
+  -- Let's try that in attempt 6 then!
+
+module Attempt6 where
+
+  open Unit
+
+  -- Now there are several changes I want to make to the data type. The first one,
+  -- is to not require the Total constraint on the relation. The second one is that I
+  -- want a closed bound on my data type. The closed bound idea seems closer to my previous
+  -- definitions and I want to experiment with it. From reading the paper they said for more
+  -- complex functions we might actually need a upper bound, which makes sense to me, but let's
+  -- leave that out of the equation for now.
+
+  proof-≾ : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} → (n : ℕ) → (a lowerBound : A) → Set ℓ
+  proof-≾ {ℓ} zero a lowerBound = ⊤
+  proof-≾ {_≾_ = _≾_} (suc n) a lowerBound = a ≾ lowerBound
+
+  data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → A → Set ℓ where
+    -- As previous, the empty vector case does not care what the lower bound is
+    [] : {lowerBound : A} → Vector A _≾_ 0 lowerBound
+    -- In cons case, the head must be smaller than the tail's lower bound which in turn will
+    -- make the resulting type lower bound be the head.
+    -- This means lowerBound is a closed bound.
+    -- 
+    -- The way this is defined means that, for example, the singleton list will need to require
+    -- some proof, which is a bit disapointing, I guess this is why they went for a open bound in
+    -- the paper, but I really want this to work so I'll do one small trick.
+    _∷_ : {lowerBound : A} {n : ℕ} → (a : A) → {proof-≾ {ℓ} {A} {_≾_ = _≾_} n a lowerBound} → Vector A _≾_ n lowerBound → Vector A _≾_ (suc n) a
+
+
+  -- Lets get some examples going:
+
+  -- You might notice that now copy pasting exactly the same examples from attempt 5
+  -- won't type check, that is because the head of the vector needs to be the Vector's
+  -- lower bound.
+  example1 : Vector ℕ _≤_ 3 0
+  example1 = _∷_ {lowerBound = 3} 0 {z≤n} (_∷_ {lowerBound = 5} 3 {s≤s (s≤s (s≤s z≤n))} (_∷_ {lowerBound = zero} 5 {tt} []))
+
+  example2 : Vector ℕ _≤_ 3 2
+  example2 = _∷_ {lowerBound = 5} 2 {s≤s (s≤s z≤n)} (_∷_ {lowerBound = 7} 5 {s≤s (s≤s (s≤s (s≤s (s≤s z≤n))))} (_∷_ {lowerBound = zero} 7 {tt} []))
+
+  -- It works! It is a shame that we have to fill so much information, but let's continue seeing
+  -- where this formulation leads us.
