@@ -16,70 +16,70 @@ module Unit where
     instance constructor tt
 
 module Attempt1 where
-  -- I have been sitting on this idea for a while: What could I possible do with a refined vector
+  -- I have been sitting on this idea for a while: What could I possible do with a refined v
   -- data structure that could give me some guarantees about the order of its elements?
   --
   -- I had two questions in mind:
-  --   - Would I be able to prove that a vector indexed by the bottom
+  --   - Would I be able to prove that a v indexed by the bottom
   --     relation (i.e. no two elements are related) has length 0 ?
-  --   - Can I write a sorting algorithm the goes from a vector with an arbitrary relation to
+  --   - Can I write a sorting algorithm the goes from a v with an arbitrary relation to
   --     one that is ordered?
   --
   -- What more questions could I ask? If it worked then this data type index's would represent
   -- a form of refinement types withing the data structure itself that would allow us to have
   -- correct-by-construction code and also we could aid the compiler to leverage about all information
   -- and have machine-checked proofs about our code.
-  
+
   -- This is the definition I first had in mind. A Vector indexed by natural numbers (the length)
-  -- and by an arbitrary homogeneous binary relation (the order of the elements in the vector).
+  -- and by an arbitrary homogeneous binary relation (the order of the elements in the v).
   --
   data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → Set ℓ where
     -- The empty case constructor is simple, we do not require any proofs using the order
     -- Because there are no elements to compare.
     []      : Vector A _≾_ 0
-  
+
     -- This is the singleton list case. We have it because the cons constructor for this data type
     -- receives 2 elements instead of the standard 1, and I wanted to be able to represent any length
-    -- vectors. I am a bit unneasy about my choice here but I had to require some relation with this
+    -- vs. I am a bit unneasy about my choice here but I had to require some relation with this
     -- singleton element and I picked the reflexive one. Lets hope it doesn't bite me in the future.
     [_]     : ∀ (x : A) {x≾y : x ≾ x} → Vector A _≾_ 1
-  
+
     -- This is where the magic happens. This 2-cons constructor receives 2 elements to cons to a given
-    -- vector, but also needs a proof about their order.
-    _∷_∷_ : ∀ {n : ℕ} (x : A) (y : A) (xs : Vector A _≾_ n) {x≾y : x ≾ y} → Vector A _≾_ (2 + n) 
-  
-  -- Great! Now lets see how we could build a strictly ordered natural number vector: 
+    -- v, but also needs a proof about their order.
+    _∷_∷_ : ∀ {n : ℕ} (x : A) (y : A) (xs : Vector A _≾_ n) {x≾y : x ≾ y} → Vector A _≾_ (2 + n)
+
+  -- Great! Now lets see how we could build a strictly ordered natural number v:
   test : Vector ℕ (_<_) 2
   test = (1 ∷ 2 ∷ []) {s≤s (s≤s z≤n)}
-  
+
   -- Now lets see if we can answer the first question, which is about proving that for a Vector
-  -- indexed by the bottom relation the only possible vector is the empty one.
+  -- indexed by the bottom relation the only possible v is the empty one.
   absurd-has-length-0 : ∀ {n : ℕ} → Vector ℕ (λ _ _ → ⊥) n → n ≡ 0
   absurd-has-length-0 [] = refl
-  
+
   -- Awesome! Agda managed to prove it just with refl, that's the kind of power I was looking
   -- to provide to the compiler with a data structure formulation like this.
-  
+
   -- Now lets see if we can prove (code) that sorting a ℕ's Vector indexed by an
   -- arbitrary relation, results in an ordered list.
   --
   -- I am thinking about a merge or quicksort, but for that we need to be able to split
-  -- the vector in half in each recursive step. For that we need some auxiliary functions:
-  
+  -- the v in half in each recursive step. For that we need some auxiliary functions:
+
   -- The head function is relatively straightforward:
   head : ∀ {n} {ℓ} {A} {_≾_} → Vector {ℓ} A _≾_ (1 + n) → A
   head [ x ]       = x
   head (x ∷ _ ∷ _) = x
-  
+
   -- It appears that head's counterpart function - tail, is not straightforward due to
   -- the way our data constructors are designed. In order to implement tail I need some
-  -- auxiliary function that lets me cons just a single element into a vector.
+  -- auxiliary function that lets me cons just a single element into a v.
   --
   -- The challenge here is providing the actual proof that the element I want to cons respects
   -- the order, because we can either be cons-ing the element to an empty list or a non-empty
   -- list. In simpler terms, we either need to provide a reflexive proof or a proof that
-  -- the element that we want to add relates with the head of the non-empty vector.
-  -- 
+  -- the element that we want to add relates with the head of the non-empty v.
+  --
   -- Coming with a suitable, ergonomic type signature was hard, but ultimately I found this one
   -- where one passes a function that computes the proof for us, for an arbitrary value.
   cons : ∀ {n} {ℓ} {A} {_≾_ : Rel A ℓ}
@@ -90,12 +90,12 @@ module Attempt1 where
   cons a [] f = [ a ] {f a}
   cons a [ x ] f = (a ∷ x ∷ []) {f x}
   cons a (x ∷ y ∷ v) f = (a ∷ y ∷ cons a v f) {f y}
-  
-  -- This is my miserable attempt to define the tail function on refined vectors. I thought
+
+  -- This is my miserable attempt to define the tail function on refined vs. I thought
   -- I needed the cons function but it appears I can not produce the proof I need so easily.
   --
   -- While trying to define tail I discovered a major flaw on my data type which is I can only
-  -- enforce the order in a non-transitive way. E.g. the vector 1 2 0 1 would be valid, because
+  -- enforce the order in a non-transitive way. E.g. the v 1 2 0 1 would be valid, because
   -- I do not require any proof between 2 and 0.
   --
   -- tail : ∀ {n} {A} {_≾_} {reflexive : Reflexive _≾_}
@@ -106,9 +106,9 @@ module Attempt1 where
   -- ... | [] = [ y ] {reflexive {y}}
   -- ... | [ z ] = (y ∷ z ∷ []) {{!!}}
   -- ... | x₁ ∷ y₁ ∷ res = {!!}
-  
+
   -- I need to reformulate my data type.
-  
+
 module Attempt2 where
 
   -- We need to roll our own ⊤ data type, for reasons enumerated below.
@@ -117,7 +117,7 @@ module Attempt2 where
   -- After much thinking I think I can maybe fix my problem with a mutual recursive data type.
   -- Here's what I thought about:
   --
-  -- Two refined vector types, and in Agda if I want to define mutual recursive data types
+  -- Two refined v types, and in Agda if I want to define mutual recursive data types
   -- I have to provide the type signature first and only then the constructor declarations
   data Vectorᵐ₁ {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → Set ℓ
   data Vectorᵐ₂ {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → Set ℓ
@@ -137,17 +137,17 @@ module Attempt2 where
   -- because we are going to have to include them in the data declarations.
   --
   -- Deprecated reason:
-  -- Great! Now lets see how we could build a strictly ordered natural number vector.
+  -- Great! Now lets see how we could build a strictly ordered natural number v.
   -- And woops it appears that requiring a reflexive proof is too restrictive. We should ditch
   -- that.
   --
   -- test : Vector ℕ (_<_) 2
-  -- test = (1 ∷ (2 ∷ []) {{!!}}) {s≤s (s≤s z≤n)} 
-  -- 
+  -- test = (1 ∷ (2 ∷ []) {{!!}}) {s≤s (s≤s z≤n)}
+  --
   -- headₐ₁ : ∀ {ℓ} {n} {A} {_≾_} → A → Vectorᵐ₁ {ℓ} A _≾_ n → A
   -- headₐ₁ a [] = a
   -- headₐ₁ _ (x ∷ v) = x
-  -- 
+  --
   -- headₐ₂ : ∀ {ℓ} {n} {A} {_≾_} → A → Vectorᵐ₂ {ℓ} A _≾_ n → A
   -- headₐ₂ a [] = a
   -- headₐ₂ _ (x ∷ v) = x
@@ -181,12 +181,12 @@ module Attempt2 where
   proof-≾₂ _ [] = ⊤
   proof-≾₂ {_≾_ = _≾_} a (b ∷ v) = a ≾ b
 
-  -- Great! Now lets see how we could build a strictly ordered natural number vector.
+  -- Great! Now lets see how we could build a strictly ordered natural number v.
   test : Vector ℕ (_<_) 2
   test = (1 ∷ (2 ∷ []) {tt}) {s≤s (s≤s z≤n)}
-  
+
   -- Now regarding the first question, which is about proving that for a Vector
-  -- indexed by the bottom relation the only possible vector is the empty one,
+  -- indexed by the bottom relation the only possible v is the empty one,
   -- we know our intuition was flawed and that requiring a proof for the singleton
   -- case is too restrictive. Hence our question needs to be reformulated:
   absurd-has-length-<2 : ∀ {n : ℕ} → Vector ℕ (λ _ _ → ⊥) n → n < 2
@@ -197,55 +197,55 @@ module Attempt2 where
   -- Let's start with something on naturals and then see if we can generalize.
 
   -- I am thinking about a merge or quicksort, but for that we need to be able to split
-  -- the vector in half in each recursive step. For that we need some auxiliary functions:
+  -- the v in half in each recursive step. For that we need some auxiliary functions:
 
   -- First some conversion functions. These all need to be declared in a mutual recursive fashion.
   -- So signature first and only then the implementation.
   --
   -- Something to note is that the order in which we define the signatures is the order by which
-  -- we need to define the implementation. 
+  -- we need to define the implementation.
 
   -- Oh no, I hitted a wall. It seems, I am not able to pass the needed proof obligation.
   -- And all this mutual recursive machinery is very cumbersome to deal with.
   -- It feels like I should be able to prove this but I guess I just havee to trust Agda on this
   -- one.
-  -- vector₁-to-vector₂ : ∀ {ℓ} {n} {A} {_≾_} → Vectorᵐ₁ {ℓ} A _≾_ n → Vectorᵐ₂ {ℓ} A _≾_ n
-  -- vector₂-to-vector₁ : ∀ {ℓ} {n} {A} {_≾_} → Vectorᵐ₂ {ℓ} A _≾_ n → Vectorᵐ₁ {ℓ} A _≾_ n
+  -- v₁-to-v₂ : ∀ {ℓ} {n} {A} {_≾_} → Vectorᵐ₁ {ℓ} A _≾_ n → Vectorᵐ₂ {ℓ} A _≾_ n
+  -- v₂-to-v₁ : ∀ {ℓ} {n} {A} {_≾_} → Vectorᵐ₂ {ℓ} A _≾_ n → Vectorᵐ₁ {ℓ} A _≾_ n
   --
   -- proof-≾₁-to-proof-≾₂ : ∀ {ℓ} {n} {A} {_≾_} (a : A) (v : Vectorᵐ₁ {ℓ} A _≾_ n)
   --                      → proof-≾₁ a v
-  --                      → proof-≾₂ a (vector₁-to-vector₂ v)
+  --                      → proof-≾₂ a (v₁-to-v₂ v)
   -- proof-≾₂-to-proof-≾₁ : ∀ {ℓ} {n} {A} {_≾_} (a : A) (v : Vectorᵐ₂ {ℓ} A _≾_ n)
   --                      → proof-≾₂ a v
-  --                      → proof-≾₁ a (vector₂-to-vector₁ v)
+  --                      → proof-≾₁ a (v₂-to-v₁ v)
   --
   --
   -- These lemmas would be useful to have but since I am not able to provide them, it means I must
   -- change my data type formulation again...
   --
-  -- vector₁-to-vector₂ [] = []
-  -- vector₁-to-vector₂ ((a ∷ v) {p}) = (a ∷ vector₂-to-vector₁ v) {proof-≾₂-to-proof-≾₁ a v p}
-  -- 
-  -- vector₂-to-vector₁ [] = []
-  -- vector₂-to-vector₁ ((a ∷ v) {p}) = (a ∷ vector₁-to-vector₂ v) {proof-≾₁-to-proof-≾₂ a v p}
-  -- 
+  -- v₁-to-v₂ [] = []
+  -- v₁-to-v₂ ((a ∷ v) {p}) = (a ∷ v₂-to-v₁ v) {proof-≾₂-to-proof-≾₁ a v p}
+  --
+  -- v₂-to-v₁ [] = []
+  -- v₂-to-v₁ ((a ∷ v) {p}) = (a ∷ v₁-to-v₂ v) {proof-≾₁-to-proof-≾₂ a v p}
+  --
   -- proof-≾₁-to-proof-≾₂ a [] p = tt
   -- proof-≾₁-to-proof-≾₂ a (a₁ ∷ v) p = p
-  -- 
+  --
   -- proof-≾₂-to-proof-≾₁ a [] p = tt
   -- proof-≾₂-to-proof-≾₁ a (a₁ ∷ v) p = p
   --
-  -- vector₂₁-to-vector : ∀ {ℓ} {n} {A} {_≾_} (v : Vector {ℓ} A _≾_ n)
-  --                    → vector₂-to-vector₁ (vector₁-to-vector₂ v) ≡ v
-  -- vector₁₂-to-vector : ∀ {ℓ} {n} {A} {_≾_} (v : Vectorᵐ₂ {ℓ} A _≾_ n)
-  --                    → vector₁-to-vector₂ (vector₂-to-vector₁ v) ≡ v
+  -- v₂₁-to-v : ∀ {ℓ} {n} {A} {_≾_} (v : Vector {ℓ} A _≾_ n)
+  --                    → v₂-to-v₁ (v₁-to-v₂ v) ≡ v
+  -- v₁₂-to-v : ∀ {ℓ} {n} {A} {_≾_} (v : Vectorᵐ₂ {ℓ} A _≾_ n)
+  --                    → v₁-to-v₂ (v₂-to-v₁ v) ≡ v
   --
   --
-  -- vector₂₁-to-vector [] = refl
-  -- vector₂₁-to-vector ((a ∷ v) {p}) = cong (λ v′ → (a ∷ v′) {{!!}}) (vector₁₂-to-vector v)
+  -- v₂₁-to-v [] = refl
+  -- v₂₁-to-v ((a ∷ v) {p}) = cong (λ v′ → (a ∷ v′) {{!!}}) (v₁₂-to-v v)
   --
-  -- vector₁₂-to-vector [] = refl
-  -- vector₁₂-to-vector ((a ∷ v) {p}) = cong (λ v′ → (a ∷ v′) {{!!}}) (vector₂₁-to-vector v)
+  -- v₁₂-to-v [] = refl
+  -- v₁₂-to-v ((a ∷ v) {p}) = cong (λ v′ → (a ∷ v′) {{!!}}) (v₂₁-to-v v)
 
 
 module Attempt3 where
@@ -278,7 +278,7 @@ module Attempt3 where
   -- Lets do our first tests drives:
   test : Vector ℕ (_<_) 2
   test = (1 ∷ (2 ∷ []) {tt}) {s≤s (s≤s z≤n)}
-  
+
   absurd-has-length-<2 : ∀ {n : ℕ} → Vector ℕ (λ _ _ → ⊥) n → n < 2
   absurd-has-length-<2 [] = s≤s z≤n
   absurd-has-length-<2 (a ∷ []) = s≤s (s≤s z≤n)
@@ -303,58 +303,58 @@ module Attempt3 where
   last (a ∷ v@(_ ∷ _)) = last v
 
 
-  vector-shuffle₀ : ∀ {ℓ} {n} {A} {_≾_}
+  v-shuffle₀ : ∀ {ℓ} {n} {A} {_≾_}
       → Vector {ℓ} A _≾_ n
       → Vector {ℓ} A _≾_ (n + 0)
-  proof-vector-shuffle₀ : ∀ {ℓ} {n} {A} {_≾_}
+  proof-≾-shuffle₀ : ∀ {ℓ} {n} {A} {_≾_}
        → (a : A)
        → (v : Vector {ℓ} A _≾_ n)
-       → proof-≾ a v 
-       → proof-≾ a (vector-shuffle₀ v)
+       → proof-≾ a v
+       → proof-≾ a (v-shuffle₀ v)
 
-  vector-shuffle₀ [] = []
-  vector-shuffle₀ ((a ∷ v) {p}) = (a ∷ vector-shuffle₀ v) {proof-vector-shuffle₀ a v p}
+  v-shuffle₀ [] = []
+  v-shuffle₀ ((a ∷ v) {p}) = (a ∷ v-shuffle₀ v) {proof-≾-shuffle₀ a v p}
 
-  proof-vector-shuffle₀ _ [] _ = tt
-  proof-vector-shuffle₀ _ (_ ∷ _) p = p
+  proof-≾-shuffle₀ _ [] _ = tt
+  proof-≾-shuffle₀ _ (_ ∷ _) p = p
 
-  vector-shuffle₁ : ∀ {ℓ} {n} {A} {_≾_}
+  v-shuffle₁ : ∀ {ℓ} {n} {A} {_≾_}
       → Vector {ℓ} A _≾_ (1 + n)
       → Vector {ℓ} A _≾_ (n + 1)
-  proof-vector-shuffle₁ : ∀ {ℓ} {n} {A} {_≾_}
+  proof-≾-shuffle₁ : ∀ {ℓ} {n} {A} {_≾_}
        → (a : A)
        → (v : Vector {ℓ} A _≾_ (1 + n))
-       → proof-≾ a v 
-       → proof-≾ a (vector-shuffle₁ v)
+       → proof-≾ a v
+       → proof-≾ a (v-shuffle₁ v)
 
-  vector-shuffle₁ {_} {zero} ((a ∷ []) {p}) = a ∷ []
-  vector-shuffle₁ {_} {suc n} ((a ∷ v) {p}) = (a ∷ vector-shuffle₁ {_} {n} v) {proof-vector-shuffle₁ a v p}
+  v-shuffle₁ {_} {zero} ((a ∷ []) {p}) = a ∷ []
+  v-shuffle₁ {_} {suc n} ((a ∷ v) {p}) = (a ∷ v-shuffle₁ {_} {n} v) {proof-≾-shuffle₁ a v p}
 
-  proof-vector-shuffle₁ {_} {zero} a (b ∷ []) p = p
-  proof-vector-shuffle₁ {_} {suc n} a (b ∷ v) p = p
+  proof-≾-shuffle₁ {_} {zero} a (b ∷ []) p = p
+  proof-≾-shuffle₁ {_} {suc n} a (b ∷ v) p = p
 
-  vector-shuffle : ∀ {ℓ} {m n} {A} {_≾_}
+  v-shuffle : ∀ {ℓ} {m n} {A} {_≾_}
       → Vector {ℓ} A _≾_ (1 + (m + n))
       → Vector {ℓ} A _≾_ (m + (1 + n))
-  proof-vector-shuffle : ∀ {ℓ} {m n} {A} {_≾_}
+  proof-≾-shuffle : ∀ {ℓ} {m n} {A} {_≾_}
        → (a : A)
        → (v : Vector {ℓ} A _≾_ (1 + (m + n)))
-       → proof-≾ a v 
-       → proof-≾ a (vector-shuffle {ℓ} {m} {n} v)
+       → proof-≾ a v
+       → proof-≾ a (v-shuffle {ℓ} {m} {n} v)
 
-  vector-shuffle {_} {zero} ((a ∷ v) {p}) = (a ∷ v) {p}
-  vector-shuffle {ℓ} {suc m} ((a ∷ v) {p}) = (a ∷ vector-shuffle v) {proof-vector-shuffle {ℓ} {m} a v p}
+  v-shuffle {_} {zero} ((a ∷ v) {p}) = (a ∷ v) {p}
+  v-shuffle {ℓ} {suc m} ((a ∷ v) {p}) = (a ∷ v-shuffle v) {proof-≾-shuffle {ℓ} {m} a v p}
 
-  proof-vector-shuffle {_} {zero} _ (_ ∷ _) p = p
-  proof-vector-shuffle {_} {suc m} _ (_ ∷ _) p = p
+  proof-≾-shuffle {_} {zero} _ (_ ∷ _) p = p
+  proof-≾-shuffle {_} {suc m} _ (_ ∷ _) p = p
 
   -- append : ∀ {m n} {ℓ} {A} {_≾_}
   --            {total : Total _≾_}
   --        → Vector {ℓ} A _≾_ m
   --        → Vector {ℓ} A _≾_ n
-  --        → Vector {ℓ} A _≾_ (m + n) 
+  --        → Vector {ℓ} A _≾_ (m + n)
   --
-  -- Appending two polymorphic refined vectors is proving super hard, so I am
+  -- Appending two polymorphic refined vs is proving super hard, so I am
   -- going to first try and implement it on Nats and see how/if is going to
   -- work out. And then hopeefully will gather enough insights to generalize it
   -- later.
@@ -372,8 +372,8 @@ module Attempt3 where
   --     obstacles Agda was giving me:
   --
   -- It seems that specializing to Nats helps a little bit and makes it clearer
-  -- why Agda does not like what I am trying to do. 
-  -- 
+  -- why Agda does not like what I am trying to do.
+  --
   -- append-ℕ : ∀ {m n} {total : Total _≤_}
   --          → (as : Vector ℕ _≤_ m)
   --          → (bs : Vector ℕ _≤_ n)
@@ -384,15 +384,15 @@ module Attempt3 where
   -- up with something like this in my goal:
   --
   -- _a≾b_409 : proof-≾ a (append-ℕ-aux as (b ∷ bs))
-  -- 
-  -- Because proof-≾ has a vector as its second argument you end up with the recursive
+  --
+  -- Because proof-≾ has a v as its second argument you end up with the recursive
   -- call the goal, which is tricky (perhaps impossible) to deal with.
   --
   -- So I guess this means I should figure out a better, clever way to design the
   -- data structure in such a way that does not give Agda such a bad time.
 
 module Attempt5 where
-  
+
   open import Data.Nat.Properties using (+-comm; +-identityʳ)
 
 
@@ -403,7 +403,7 @@ module Attempt5 where
   -- a great deal of insight on how to think about problems like these.
   -- Their idea, although specialized to Nats and restricted to Total orders, is to index
   -- the Vector type by bounds as well. Which makes sense and it is this little bit of intrinsic
-  -- evidence that makes Agda able to get through the recursive step on append. 
+  -- evidence that makes Agda able to get through the recursive step on append.
   --
   -- Let me show case what they suggest in the paper:
 
@@ -412,7 +412,7 @@ module Attempt5 where
   -- This lower bound means that the Vector shall only contain values greater or equal than
   -- it.
   data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) (t : Total _≾_) : ℕ → A → Set ℓ where
-    -- The empty vector case does not care what the lower bound is
+    -- The empty v case does not care what the lower bound is
     [] : {lowerBound : A} → Vector A _≾_ t 0 lowerBound
     -- In cons case, the head must exceed the prescribed lower bound and bound the tail in turn.
     -- This means lowerBound is an open bound.
@@ -434,19 +434,19 @@ module Attempt5 where
   example2 = _∷_ 2 {z≤n} (_∷_ 4 {s≤s (s≤s z≤n)} (_∷_ 6 {s≤s (s≤s (s≤s (s≤s z≤n)))} []))
 
   -- Now in the paper, I think they simplify the append (merge) function type signature by requiring
-  -- that the two vectors share the same lower bound, so the result also shares it. I think we might be able
+  -- that the two vs share the same lower bound, so the result also shares it. I think we might be able
   -- to get away with being a little more general, but we will let Agda be the judge of that.
   -- Here's the definition of merge:
 
   head : ∀ {ℓ} {A} {b : A} {n : ℕ} {_≾_} {total : Total _≾_}→ Vector {ℓ} A _≾_ total (suc n) b → A
   head (a ∷ _) = a
-  
+
   suc-m+n≡m+suc-n : ∀ (m n : ℕ) → (suc m + n) ≡ (m + suc n)
   suc-m+n≡m+suc-n m n rewrite +-comm m n rewrite +-comm (suc n) m = refl
-  
+
   vec2vec : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_} {b : A} {m n : ℕ} → Vector A _≾_ total (suc m + n) b → Vector A _≾_ total (m + suc n) b
   vec2vec {A = A} {_≾_} {total} {b} {m} {n} v rewrite cong (λ n → Vector A _≾_ total n b) (suc-m+n≡m+suc-n m n) = v
-  
+
   merge : ∀ {ℓ} {A} {m n : ℕ} {_≾_} {total : Total _≾_}→ {b : A}
         → Vector {ℓ} A _≾_ total m b
         → Vector {ℓ} A _≾_ total n b
@@ -459,10 +459,10 @@ module Attempt5 where
 
   -- If I C-c C-n inside this hole I get the correct result!
   -- example3 : Vector ℕ _≤_ ≤-total 6 0
-  -- example3 = {! merge example1 example2 !} 
+  -- example3 = {! merge example1 example2 !}
 
-  -- As I said above I do not understand why the merge function, in the paper needs the 2 vectors to
-  -- share the lower bound, that seems oddly restrictive, it should be possible to merge 2 vectors of
+  -- As I said above I do not understand why the merge function, in the paper needs the 2 vs to
+  -- share the lower bound, that seems oddly restrictive, it should be possible to merge 2 vs of
   -- arbitrary bounds and then the result type would have the minimum between the two. Looks reasonable,
   -- right? Another thing I wonder is that we might get away without passing Total in the data type,
   -- I like it much more we you could keep everything polymorphic and then require Total for append,
@@ -486,28 +486,134 @@ module Attempt6 where
   proof-≾ {_≾_ = _≾_} (suc n) a lowerBound = a ≾ lowerBound
 
   data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → A → Set ℓ where
-    -- As previous, the empty vector case does not care what the lower bound is
+    -- As previous, the empty v case does not care what the lower bound is
     [] : {lowerBound : A} → Vector A _≾_ 0 lowerBound
     -- In cons case, the head must be smaller than the tail's lower bound which in turn will
-    -- make the resulting type lower bound be the head.
+    -- make the resulting type's lower bound be the head.
     -- This means lowerBound is a closed bound.
-    -- 
+    --
     -- The way this is defined means that, for example, the singleton list will need to require
-    -- some proof, which is a bit disapointing, I guess this is why they went for a open bound in
-    -- the paper, but I really want this to work so I'll do one small trick.
-    _∷_ : {lowerBound : A} {n : ℕ} → (a : A) → {proof-≾ {ℓ} {A} {_≾_ = _≾_} n a lowerBound} → Vector A _≾_ n lowerBound → Vector A _≾_ (suc n) a
+    -- _some_ proof, which is a bit disapointing. I guess this is why they went for a open bound in
+    -- the paper, but I really want this to work so I'll do one small trick. With
+    -- proof-≾ I'll check the length of the tail v, and if it is 0 then ask for the trivial
+    -- proof (⊤). Since proof-≾ is not mutual recursive with the Vector definition I hope
+    -- this trick will work out nicely.
+    _∷_ : {lowerBound : A} {n : ℕ}
+        → (a : A)
+        → Vector A _≾_ n lowerBound
+        → {proof-≾ {ℓ} {A} {_≾_ = _≾_} n a lowerBound}
+        → Vector A _≾_ (suc n) a
 
 
   -- Lets get some examples going:
 
   -- You might notice that now copy pasting exactly the same examples from attempt 5
-  -- won't type check, that is because the head of the vector needs to be the Vector's
+  -- won't type check, that is because the head of the v needs to be the Vector's
   -- lower bound.
   example1 : Vector ℕ _≤_ 3 0
-  example1 = _∷_ {lowerBound = 3} 0 {z≤n} (_∷_ {lowerBound = 5} 3 {s≤s (s≤s (s≤s z≤n))} (_∷_ {lowerBound = zero} 5 {tt} []))
+  example1 = (0 ∷ (3 ∷ (5 ∷ [] {lowerBound = zero})) {s≤s (s≤s (s≤s z≤n))}) {z≤n}
 
-  example2 : Vector ℕ _≤_ 3 2
-  example2 = _∷_ {lowerBound = 5} 2 {s≤s (s≤s z≤n)} (_∷_ {lowerBound = 7} 5 {s≤s (s≤s (s≤s (s≤s (s≤s z≤n))))} (_∷_ {lowerBound = zero} 7 {tt} []))
+  example2 : Vector ℕ _≤_ 3 1
+  example2 = (1 ∷ (4 ∷ (6 ∷ [] {lowerBound = zero})) {s≤s (s≤s (s≤s (s≤s z≤n)))}) {s≤s z≤n}
 
   -- It works! It is a shame that we have to fill so much information, but let's continue seeing
   -- where this formulation leads us.
+
+
+  -- Next up is the append/merge function, we shall attempt to generalize the
+  -- type signature in order to accomodate any lower bound input vs, and
+  -- return one, which lower bound is the minimum of the inputs.
+
+  -- Minimum between to elements that can be totaly ordered. This function
+  -- also has the length of the Vector in consideration, since the empty v
+  -- case requires any lowerbound we make sure that if the index is 0 then
+  -- the minimum lowerbound becomes that of the non-empty list.
+  min : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_}
+      → ℕ → A
+      → ℕ → A
+      → A
+  min zero _ (suc _) b = b
+  min (suc _) a zero _ = a
+  min {total = total} _ a _ b with total a b
+  ... | inj₁ _ = a
+  ... | inj₂ _ = b
+
+  -- Vector auxiliary lemmas to shuffle around length index
+
+  v-shuffle₀ : ∀ {ℓ} {A} {_≾_} {n} {b}
+             → Vector {ℓ} A _≾_ n b
+             → Vector {ℓ} A _≾_ (n + 0) b
+  proof-≾-shuffle₀ : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {n} {a b}
+                   → proof-≾ {ℓ} {A} {_≾_} n a b
+                   → proof-≾ {ℓ} {A} {_≾_} (n + 0) a b
+
+  v-shuffle₀ [] = []
+  v-shuffle₀ {n = suc n} ((a ∷ as) {p}) =
+    (a ∷ (v-shuffle₀ as)) {proof-≾-shuffle₀ {n = n} p}
+
+  proof-≾-shuffle₀ {n = zero} _ = tt
+  proof-≾-shuffle₀ {n = suc _} p = p
+
+  v-shuffle : ∀ {ℓ} {A} {_≾_} {m n} {b}
+            → Vector {ℓ} A _≾_ (1 + (m + n)) b
+            → Vector {ℓ} A _≾_ (m + (1 + n)) b
+  proof-≾-shuffle : ∀ {ℓ} {A} {_≾_} {m n} {a b}
+                  → proof-≾ {ℓ} {A} {_≾_} (1 + (m + n)) a b
+                  → proof-≾ {ℓ} {A} {_≾_} (m + (1 + n)) a b
+
+  v-shuffle {m = zero} ((a ∷ as) {p}) = (a ∷ as) {p}
+  v-shuffle {m = suc m} ((a ∷ as) {p}) =
+    (a ∷ (v-shuffle {m = m} as)) {proof-≾-shuffle {m = m} p}
+
+  proof-≾-shuffle {m = zero} p = p
+  proof-≾-shuffle {m = suc _} p = p
+
+  merge-aux₀ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lowerBound : A}
+         → proof-≾ {ℓ} {A} {_≾_} m a lowerBound
+         → a ≾ b
+         → proof-≾ {ℓ} {A} {_≾_} (m + suc n) a (min {total = total} m lowerBound (suc n) b)
+  merge-aux₀ {m = zero} _ p′ = p′
+  merge-aux₀ {total = total} {m = suc m} {b = b} {lowerBound = lb} p p′ with total lb b
+  ... | inj₁ lb≾b = p
+  ... | inj₂ b≾lb = p′
+
+  merge-aux₁ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lowerBound : A}
+         → proof-≾ {ℓ} {A} {_≾_} n b lowerBound
+         → b ≾ a
+         → proof-≾ {ℓ} {A} {_≾_} (m + suc n) b (min {total = total} (suc m) a n lowerBound)
+  merge-aux₁ {m = zero} {n = zero} p p′ = p′
+  merge-aux₁ {m = suc m} {n = zero} p p′ = p′
+  merge-aux₁ {total = total} {m = zero} {n = suc n} {a = a} {lowerBound = lb} p p′ with total a lb
+  ... | inj₁ _ = p′
+  ... | inj₂ _ = p
+  merge-aux₁ {total = total} {m = suc m} {n = suc n} {a = a} {lowerBound = lb} p p′ with total a lb
+  ... | inj₁ _ = p′
+  ... | inj₂ _ = p
+
+  merge : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {b b′}
+        → Vector {ℓ} A _≾_ m b
+        → Vector {ℓ} A _≾_ n b′
+        → Vector {ℓ} A _≾_ (m + n) (min {total = total} m b n b′)
+  merge {m = zero} {n = zero} _ _ = []
+  merge {m = zero} {n = suc n} _ bs = bs
+  merge {m = suc m} {n = zero} as _ = v-shuffle₀ as
+  merge {total = total} {m = suc m} {n = suc n}
+        aas@((a ∷ as) {pa})
+        bbs@((b ∷ bs) {pb}) with total a b
+  ... | inj₁ a≾b = (a ∷ (merge {total = total} as bbs)) {merge-aux₀ {m = m} pa a≾b}
+  ... | inj₂ b≾a = (b ∷ (v-shuffle (merge {total = total} aas bs))) {merge-aux₁ {m = m} pb b≾a}
+
+  -- Success! We managed to write merge with our closed bounds Vector data type.
+  -- And even managed to be slightly more general on the input vs bounds.
+
+  ≤-total : Total _≤_
+  ≤-total zero zero = inj₁ z≤n
+  ≤-total zero (suc y) = inj₁ z≤n
+  ≤-total (suc x) zero = inj₂ z≤n
+  ≤-total (suc x) (suc y) with ≤-total x y
+  ... | inj₁ x≤y = inj₁ (s≤s x≤y)
+  ... | inj₂ y≤x = inj₂ (s≤s y≤x)
+
+  -- If I C-c C-n inside this hole I get the correct result!
+  -- example3 : Vector ℕ _≤_ 6 0
+  -- example3 = {! merge {total = ≤-total} example1 example2 !}
