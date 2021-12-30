@@ -63,8 +63,12 @@ module Attempt1 where
   -- Now lets see if we can prove (code) that sorting a ℕ's Vector indexed by an
   -- arbitrary relation, results in an ordered list.
   --
-  -- I am thinking about a merge or quicksort, but for that we need to be able to split
-  -- the v in half in each recursive step. For that we need some auxiliary functions:
+  -- I am thinking about a mergesort or quicksort, but for that we need to be able to split
+  -- the v in half in each recursive step, and to merge them together.
+
+  -- First lets try to define some simple functions and see if we are able to do so.
+  -- If it turns out it is very difficult or even impossible, then maybe we are not
+  -- in the right track.
 
   -- The head function is relatively straightforward:
   head : ∀ {n} {ℓ} {A} {_≾_} → Vector {ℓ} A _≾_ (1 + n) → A
@@ -137,8 +141,8 @@ module Attempt2 where
   -- because we are going to have to include them in the data declarations.
   --
   -- Deprecated reason:
-  -- Great! Now lets see how we could build a strictly ordered natural number v.
-  -- And woops it appears that requiring a reflexive proof is too restrictive. We should ditch
+
+  -- It appears that requiring a reflexive proof is too restrictive. We should ditch
   -- that.
   --
   -- test : Vector ℕ (_<_) 2
@@ -196,7 +200,7 @@ module Attempt2 where
   -- So far so good. Now onto the next question. Can we write a sorting algorithm?
   -- Let's start with something on naturals and then see if we can generalize.
 
-  -- I am thinking about a merge or quicksort, but for that we need to be able to split
+  -- I am thinking about a append or quicksort, but for that we need to be able to split
   -- the v in half in each recursive step. For that we need some auxiliary functions:
 
   -- First some conversion functions. These all need to be declared in a mutual recursive fashion.
@@ -256,7 +260,7 @@ module Attempt3 where
   open import Data.Bool.Base using (T)
 
   -- For my third attempt I am just going to leverage the mutual recursive notation I learned
-  -- and define an inductive data type that tries to merge the best of both attempts.
+  -- and define an inductive data type that tries to append the best of both attempts.
   -- Basically one that has the same proof obligation strategy and that allow us to simplify things.
 
 
@@ -286,6 +290,9 @@ module Attempt3 where
   -- Aparentely everything looks good! So let's pursue our quest of writing the sorting algorithm
   -- one more time!
 
+  -- First some sanity test that we are able to implement some simple functions over
+  -- our data type:
+
   head : ∀ {ℓ} {n} {A} {_≾_}
        → Vector {ℓ} A _≾_ (1 + n)
        → A
@@ -302,6 +309,17 @@ module Attempt3 where
   last (a ∷ []) = a
   last (a ∷ v@(_ ∷ _)) = last v
 
+  -- Great! Now let's tackle one piece of the puzzle, the merge function.
+  -- When dealing with lists or non-indexed vectors, a common
+  -- operation to have is the append function that appends two lists/vectors
+  -- together. Another common one is the merge function that given two lists
+  -- of sortable elements, we are able to merge the lists together in a sorted
+  -- manner. Curiously the append for our refined vector data type has to
+  -- preserve the order aswell which means that for this particular data type
+  -- the append is actually the merge function, since there's only one way we
+  -- can append two vectors preserving their relation (by merging the)!
+
+  -- Here we define some auxiliary number shuffling functions:
 
   v-shuffle₀ : ∀ {ℓ} {n} {A} {_≾_}
       → Vector {ℓ} A _≾_ n
@@ -348,16 +366,17 @@ module Attempt3 where
   proof-≾-shuffle {_} {zero} _ (_ ∷ _) p = p
   proof-≾-shuffle {_} {suc m} _ (_ ∷ _) p = p
 
+  -- Appending two polymorphic refined vs is proving super hard, so I am
+  -- going to first try and implement it on Nats and see how/if is going to
+  -- work out. And then hopeefully will gather enough insights to generalize it
+  -- later.
+  -- 
   -- append : ∀ {m n} {ℓ} {A} {_≾_}
   --            {total : Total _≾_}
   --        → Vector {ℓ} A _≾_ m
   --        → Vector {ℓ} A _≾_ n
   --        → Vector {ℓ} A _≾_ (m + n)
   --
-  -- Appending two polymorphic refined vs is proving super hard, so I am
-  -- going to first try and implement it on Nats and see how/if is going to
-  -- work out. And then hopeefully will gather enough insights to generalize it
-  -- later.
 
   -- First some insights about my attempts to define polymorphic append:
   --   - Due to the indexed length I have to do some shuffling around. This is
@@ -401,7 +420,7 @@ module Attempt5 where
   --
   -- Section 5.2 from the paper is exactly what I am after. And from reading it they offer
   -- a great deal of insight on how to think about problems like these.
-  -- Their idea, although specialized to Nats and restricted to Total orders, is to index
+  -- Their idea, although specialized to ℕ and restricted to Total orders, is to index
   -- the Vector type by bounds as well. Which makes sense and it is this little bit of intrinsic
   -- evidence that makes Agda able to get through the recursive step on append.
   --
@@ -433,10 +452,10 @@ module Attempt5 where
   example2 : Vector ℕ _≤_ ≤-total 3 0
   example2 = _∷_ 2 {z≤n} (_∷_ 4 {s≤s (s≤s z≤n)} (_∷_ 6 {s≤s (s≤s (s≤s (s≤s z≤n)))} []))
 
-  -- Now in the paper, I think they simplify the append (merge) function type signature by requiring
-  -- that the two vs share the same lower bound, so the result also shares it. I think we might be able
+  -- Now in the paper, I think they simplify the append (append) function type signature by requiring
+  -- that the two vectors share the same lower bound, so the result also shares it. I think we might be able
   -- to get away with being a little more general, but we will let Agda be the judge of that.
-  -- Here's the definition of merge:
+  -- Here's the definition of append:
 
   head : ∀ {ℓ} {A} {b : A} {n : ℕ} {_≾_} {total : Total _≾_}→ Vector {ℓ} A _≾_ total (suc n) b → A
   head (a ∷ _) = a
@@ -447,28 +466,34 @@ module Attempt5 where
   vec2vec : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_} {b : A} {m n : ℕ} → Vector A _≾_ total (suc m + n) b → Vector A _≾_ total (m + suc n) b
   vec2vec {A = A} {_≾_} {total} {b} {m} {n} v rewrite cong (λ n → Vector A _≾_ total n b) (suc-m+n≡m+suc-n m n) = v
 
-  merge : ∀ {ℓ} {A} {m n : ℕ} {_≾_} {total : Total _≾_}→ {b : A}
+  append : ∀ {ℓ} {A} {m n : ℕ} {_≾_} {total : Total _≾_}→ {b : A}
         → Vector {ℓ} A _≾_ total m b
         → Vector {ℓ} A _≾_ total n b
         → Vector {ℓ} A _≾_ total (m + n) b
-  merge {m = zero} _ bs = bs
-  merge {m = m} {zero} as _ rewrite +-identityʳ m = as
-  merge {A = A} {_≾_ = _≾_} {total = total} {b}  (_∷_ x {b≾x} xs ) (_∷_ y {b≾y} ys) with total x y
-  ... | inj₁ x≾y = _∷_ x {b≾x} (merge {b = x}  xs (_∷_ y {x≾y} ys))
-  ... | inj₂ y≾x = _∷_ y {b≾y} (vec2vec  (merge {b = y} (_∷_ x {y≾x} xs) ys))
+  append {m = zero} _ bs = bs
+  append {m = m} {zero} as _ rewrite +-identityʳ m = as
+  append {A = A} {_≾_ = _≾_} {total = total} {b}  (_∷_ x {b≾x} xs ) (_∷_ y {b≾y} ys) with total x y
+  ... | inj₁ x≾y = _∷_ x {b≾x} (append {b = x}  xs (_∷_ y {x≾y} ys))
+  ... | inj₂ y≾x = _∷_ y {b≾y} (vec2vec  (append {b = y} (_∷_ x {y≾x} xs) ys))
 
   -- If I C-c C-n inside this hole I get the correct result!
   -- example3 : Vector ℕ _≤_ ≤-total 6 0
-  -- example3 = {! merge example1 example2 !}
+  -- example3 = {! append example1 example2 !}
 
-  -- As I said above I do not understand why the merge function, in the paper needs the 2 vs to
-  -- share the lower bound, that seems oddly restrictive, it should be possible to merge 2 vs of
+  -- As I said above I do not understand why the append function, in the paper needs the 2 vs to
+  -- share the lower bound, that seems oddly restrictive, it should be possible to append 2 vs of
   -- arbitrary bounds and then the result type would have the minimum between the two. Looks reasonable,
   -- right? Another thing I wonder is that we might get away without passing Total in the data type,
   -- I like it much more we you could keep everything polymorphic and then require Total for append,
   -- for example.
+  -- 
+  -- Another thing I noticed is that their sorting proof besides being tied to ℕ is also a bit different
+  -- than what I would expect. What I want is a general sorting function that given a Vector indexed
+  -- by an arbitrary _≾_ relation, returns a new one indexed by a different one. Is it possible? I don't
+  -- really know, but it seems a nice guess. Probably the output relation needs to have stronger properties
+  -- like being an Equivalence relation, we'll see!
 
-  -- Let's try that in attempt 6 then!
+  -- Let's try that in attempt 6!
 
 module Attempt6 where
 
@@ -519,12 +544,11 @@ module Attempt6 where
   -- It works! It is a shame that we have to fill so much information, but let's continue seeing
   -- where this formulation leads us.
 
-
   -- Next up is the append/merge function, we shall attempt to generalize the
-  -- type signature in order to accomodate any lower bound input vs, and
+  -- type signature in order to accomodate any lower bound input vectors, and
   -- return one, which lower bound is the minimum of the inputs.
 
-  -- Minimum between to elements that can be totaly ordered. This function
+  -- Minimum between two elements that can be totaly ordered. This function
   -- also has the length of the Vector in consideration, since the empty v
   -- case requires any lowerbound we make sure that if the index is 0 then
   -- the minimum lowerbound becomes that of the non-empty list.
@@ -554,6 +578,47 @@ module Attempt6 where
   proof-≾-shuffle₀ {n = zero} _ = tt
   proof-≾-shuffle₀ {n = suc _} p = p
 
+  v-shuffle₀⁻¹ : ∀ {ℓ} {A} {_≾_} {n} {b}
+             → Vector {ℓ} A _≾_ (n + 0) b
+             → Vector {ℓ} A _≾_ n b
+  proof-≾-shuffle₀⁻¹ : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {n} {a b}
+                   → proof-≾ {ℓ} {A} {_≾_} (n + 0) a b
+                   → proof-≾ {ℓ} {A} {_≾_} n a b
+
+  v-shuffle₀⁻¹ {n = zero} v = v
+  v-shuffle₀⁻¹ {n = suc n} ((a ∷ v) {p}) =
+    (a ∷ v-shuffle₀⁻¹ v) {proof-≾-shuffle₀⁻¹ {n = n} p}
+
+  proof-≾-shuffle₀⁻¹ {n = zero} p = tt
+  proof-≾-shuffle₀⁻¹ {n = suc n} p = p
+
+  proof-≾-shuffle₀-id : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {n} {a b}
+                → (p : proof-≾ {ℓ} {A} {_≾_} (n + 0) a b)
+                → proof-≾-shuffle₀ {ℓ} {A} {_≾_} {n} (proof-≾-shuffle₀⁻¹ {ℓ} {A} {_≾_} {n} p) ≡ p
+  proof-≾-shuffle₀-id {n = zero} tt = refl
+  proof-≾-shuffle₀-id {n = suc n} p = refl
+
+  v-cong : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {n : ℕ} {lb : A}
+         → (b : A)
+         → (bs : Vector {ℓ} A _≾_ (n + 0) lb)
+         → (p : proof-≾ (n + 0) b lb)
+         → (b ∷ v-shuffle₀ (v-shuffle₀⁻¹ bs))
+           {proof-≾-shuffle₀ {n = n} (proof-≾-shuffle₀⁻¹ {n = n} p)} ≡ (b ∷ bs) {p}
+  v-cong {n = zero} b [] p = refl
+  v-cong {n = suc n} b ((lb ∷ bs) {p′}) p = cong (λ x → (b ∷ x) {p}) (v-cong lb bs p′)
+
+  v-shuffle₀-id : ∀ {ℓ} {A} {_≾_} {n} {b}
+                → (xs : Vector {ℓ} A _≾_ (n + 0) b)
+                → v-shuffle₀ (v-shuffle₀⁻¹ xs) ≡ xs
+  v-shuffle₀-id {n = zero} [] = refl
+  v-shuffle₀-id {ℓ} {A} {_≾_} {n = suc n} (_∷_ {lowerBound = lb} b bs {p} ) = 
+    begin
+      ((b ∷ v-shuffle₀ (v-shuffle₀⁻¹ bs)) {proof-≾-shuffle₀ {n = n} (proof-≾-shuffle₀⁻¹ {n = n} p)})
+      ≡⟨ v-cong b bs p ⟩
+      ((b ∷ bs) {p})
+    ∎ 
+    where open ≡-Reasoning
+
   v-shuffle : ∀ {ℓ} {A} {_≾_} {m n} {b}
             → Vector {ℓ} A _≾_ (1 + (m + n)) b
             → Vector {ℓ} A _≾_ (m + (1 + n)) b
@@ -568,42 +633,55 @@ module Attempt6 where
   proof-≾-shuffle {m = zero} p = p
   proof-≾-shuffle {m = suc _} p = p
 
-  merge-aux₀ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lowerBound : A}
+  v-shuffle⁻¹ : ∀ {ℓ} {A} {_≾_} {m n} {b}
+              → Vector {ℓ} A _≾_ (m + (1 + n)) b
+              → Vector {ℓ} A _≾_ (1 + (m + n)) b
+  proof-≾-shuffle⁻¹ : ∀ {ℓ} {A} {_≾_} {m n} {a b}
+                    → proof-≾ {ℓ} {A} {_≾_} (m + (1 + n)) a b
+                    → proof-≾ {ℓ} {A} {_≾_} (1 + (m + n)) a b
+
+  v-shuffle⁻¹ {m = zero} as = as
+  v-shuffle⁻¹ {m = suc m} ((a ∷ as) {p}) = (a ∷ v-shuffle⁻¹ as) {proof-≾-shuffle⁻¹ {m = m} p}
+
+  proof-≾-shuffle⁻¹ {m = zero} p = p
+  proof-≾-shuffle⁻¹ {m = suc m} p = p
+
+  append-aux₀ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lowerBound : A}
          → proof-≾ {ℓ} {A} {_≾_} m a lowerBound
          → a ≾ b
          → proof-≾ {ℓ} {A} {_≾_} (m + suc n) a (min {total = total} m lowerBound (suc n) b)
-  merge-aux₀ {m = zero} _ p′ = p′
-  merge-aux₀ {total = total} {m = suc m} {b = b} {lowerBound = lb} p p′ with total lb b
+  append-aux₀ {m = zero} _ p′ = p′
+  append-aux₀ {total = total} {m = suc m} {b = b} {lowerBound = lb} p p′ with total lb b
   ... | inj₁ lb≾b = p
   ... | inj₂ b≾lb = p′
 
-  merge-aux₁ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lowerBound : A}
+  append-aux₁ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lowerBound : A}
          → proof-≾ {ℓ} {A} {_≾_} n b lowerBound
          → b ≾ a
          → proof-≾ {ℓ} {A} {_≾_} (m + suc n) b (min {total = total} (suc m) a n lowerBound)
-  merge-aux₁ {m = zero} {n = zero} p p′ = p′
-  merge-aux₁ {m = suc m} {n = zero} p p′ = p′
-  merge-aux₁ {total = total} {m = zero} {n = suc n} {a = a} {lowerBound = lb} p p′ with total a lb
+  append-aux₁ {m = zero} {n = zero} p p′ = p′
+  append-aux₁ {m = suc m} {n = zero} p p′ = p′
+  append-aux₁ {total = total} {m = zero} {n = suc n} {a = a} {lowerBound = lb} p p′ with total a lb
   ... | inj₁ _ = p′
   ... | inj₂ _ = p
-  merge-aux₁ {total = total} {m = suc m} {n = suc n} {a = a} {lowerBound = lb} p p′ with total a lb
+  append-aux₁ {total = total} {m = suc m} {n = suc n} {a = a} {lowerBound = lb} p p′ with total a lb
   ... | inj₁ _ = p′
   ... | inj₂ _ = p
 
-  merge : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {b b′}
+  append : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {b b′}
         → Vector {ℓ} A _≾_ m b
         → Vector {ℓ} A _≾_ n b′
         → Vector {ℓ} A _≾_ (m + n) (min {total = total} m b n b′)
-  merge {m = zero} {n = zero} _ _ = []
-  merge {m = zero} {n = suc n} _ bs = bs
-  merge {m = suc m} {n = zero} as _ = v-shuffle₀ as
-  merge {total = total} {m = suc m} {n = suc n}
+  append {m = zero} {n = zero} _ _ = []
+  append {m = zero} {n = suc n} _ bs = bs
+  append {m = suc m} {n = zero} as _ = v-shuffle₀ as
+  append {total = total} {m = suc m} {n = suc n}
         aas@((a ∷ as) {pa})
         bbs@((b ∷ bs) {pb}) with total a b
-  ... | inj₁ a≾b = (a ∷ (merge {total = total} as bbs)) {merge-aux₀ {m = m} pa a≾b}
-  ... | inj₂ b≾a = (b ∷ (v-shuffle (merge {total = total} aas bs))) {merge-aux₁ {m = m} pb b≾a}
+  ... | inj₁ a≾b = (a ∷ (append {total = total} as bbs)) {append-aux₀ {m = m} pa a≾b}
+  ... | inj₂ b≾a = (b ∷ (v-shuffle (append {total = total} aas bs))) {append-aux₁ {m = m} pb b≾a}
 
-  -- Success! We managed to write merge with our closed bounds Vector data type.
+  -- Success! We managed to write append with our closed bounds Vector data type.
   -- And even managed to be slightly more general on the input vs bounds.
 
   ≤-total : Total _≤_
@@ -614,6 +692,53 @@ module Attempt6 where
   ... | inj₁ x≤y = inj₁ (s≤s x≤y)
   ... | inj₂ y≤x = inj₂ (s≤s y≤x)
 
+  ≤-reflexive : Reflexive _≤_
+  ≤-reflexive {zero} = z≤n
+  ≤-reflexive {suc b} = s≤s ≤-reflexive
+
+  ≤-transitive : Transitive _≤_
+  ≤-transitive z≤n z≤n = z≤n
+  ≤-transitive z≤n (s≤s j≤k) = z≤n
+  ≤-transitive (s≤s i≤j) (s≤s j≤k) = s≤s (≤-transitive i≤j j≤k)
+
   -- If I C-c C-n inside this hole I get the correct result!
   -- example3 : Vector ℕ _≤_ 6 0
-  -- example3 = {! merge {total = ≤-total} example1 example2 !}
+  -- example3 = {! append {total = ≤-total} example1 example2 !}
+
+  -- One less obstacle in pursuit of our sorting function!
+  --
+  -- The next ingredient for the merge sort is the split function
+  -- which splits our vector in half.
+  --
+  -- The first problem we find here is that we have to specify the lower 
+  -- bound for the second half of the vector we are splitting and this
+  -- bound needs to be exactly the element at index n ÷ 2 . Another insight
+  -- is that split can be seen as simply using take and drop (if we ignore
+  -- the proof that the 2 halfs appended have to be equal to the original).
+  -- take is straightforward to implement since the output vector preserves
+  -- the lower bound:
+
+  take : ∀ {ℓ} {A} {_≾_} {n : ℕ} {b : A}
+       → (m : ℕ)
+       → Vector {ℓ} A _≾_ n b
+       → Vector {ℓ} A _≾_ (m ⊓ n) b
+  take zero _ = []
+  take (suc _) [] = []
+  take (suc m) ((a ∷ as) {p}) with take m as
+  ... | res = (a ∷ res) {p-aux {m = m} p}
+    where
+      p-aux : ∀ {ℓ} {A} {_≾_} {n m : ℕ} {a b : A}
+            → proof-≾ {ℓ} {_≾_ = _≾_} n a b
+            → proof-≾ {ℓ} {_≾_ = _≾_} (m ⊓ n) a b
+      p-aux {m = zero} p = tt
+      p-aux {n = zero} {m = suc m} p = tt
+      p-aux {n = suc n} {m = suc m} p = p
+
+  -- However drop is not as easy because we have to specify also that the
+  -- new lower bound should be the head of the resulting list if non-empty.
+
+  drop : ∀ {ℓ} {A} {_≾_} {n : ℕ} {b : A}
+       → (m : ℕ)
+       → Vector {ℓ} A _≾_ n b
+       → Vector {ℓ} A _≾_ (m ⊓ n) {!!}
+  drop m v = {!!} 
