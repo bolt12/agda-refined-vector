@@ -12,9 +12,9 @@ a form of refinement types withing the data structure itself that would allow us
 correct-by-construction code and also we could aid the compiler to leverage about all information
 and have machine-checked proofs about our code.
 
-In this literate agda file I document my journey and any successes and failures a long the way.
+In this literate Agda file I document my journey and any successes and failures a long the way.
 
-```
+```agda
 module RefinedVector where
 
 open import Level using (Level) renaming (zero to 0ℓ; suc to suc-ℓ)
@@ -29,7 +29,8 @@ open import Data.Sum
 ```
 
 At some point we will need this custom, universe polymorphic `Unit` type.
-```
+
+```agda
 module Unit where
 
   record ⊤ {ℓ : Level} : Set ℓ where
@@ -39,51 +40,55 @@ module Unit where
 This is the first attempt where I naively try to express in Agda what I initially had in mind
 for this idea.
 
-```
+```agda
 module Attempt1 where
 ```
 
 This is the definition I first had in mind. A Vector indexed by natural numbers (the length)
 and by an arbitrary homogeneous binary relation (the order of the elements in the v).
 
-```
+```agda
   data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → Set ℓ where
 ```
+
 The empty case constructor is simple, we do not require any proofs using the order
 Because there are no elements to compare.
 
-```
+```agda
     []      : Vector A _≾_ 0
 ```
+
 This is the singleton list case. We have it because the cons constructor for this data type
 receives 2 elements instead of the standard 1, and I wanted to be able to represent any length
-vs. I am a bit unneasy about my choice here but I had to require some relation with this
+vectors. I am a bit uneasy about my choice here but I had to require some relation with this
 singleton element and I picked the reflexive one. Lets hope it doesn't bite me in the future.
-```
+
+```agda
     [_]     : ∀ (x : A) {x≾y : x ≾ x} → Vector A _≾_ 1
 ```
 This is where the magic happens. This 2-cons constructor receives 2 elements to cons to a given
 v, but also needs a proof about their order.
-```
+
+```agda
     _∷_∷_ : ∀ {n : ℕ} (x : A) (y : A) (xs : Vector A _≾_ n) {x≾y : x ≾ y} → Vector A _≾_ (2 + n)
 ```
 
-Great! Now lets see how we could build a strictly ordered natural number v:
+Great! Now lets see how we could build a strictly ordered natural number vector:
 
-```
+```agda
   test : Vector ℕ (_<_) 2
   test = (1 ∷ 2 ∷ []) {s≤s (s≤s z≤n)}
 ```
 
 Now lets see if we can answer the first question, which is about proving that for a Vector
-indexed by the bottom relation the only possible v is the empty one.
+indexed by the bottom relation the only possible vector is the empty one.
 
-```
+```agda
   absurd-has-length-0 : ∀ {n : ℕ} → Vector ℕ (λ _ _ → ⊥) n → n ≡ 0
   absurd-has-length-0 [] = refl
 ```
 
-Awesome! Agda managed to prove it just with refl, that's the kind of power I was looking
+Awesome! Agda managed to prove it just with `refl`, that's the kind of power I was looking
 to provide to the compiler with a data structure formulation like this.
 
 Now lets see if we can prove (code) that sorting a ℕ's Vector indexed by an
@@ -97,7 +102,8 @@ If it turns out it is very difficult or even impossible, then maybe we are not
 in the right track.
 
 The head function is relatively straightforward:
-```
+
+```agda
   head : ∀ {n} {ℓ} {A} {_≾_} → Vector {ℓ} A _≾_ (1 + n) → A
   head [ x ]       = x
   head (x ∷ _ ∷ _) = x
@@ -105,17 +111,17 @@ The head function is relatively straightforward:
 
 It appears that head's counterpart function - tail, is not straightforward due to
 the way our data constructors are designed. In order to implement tail I need some
-auxiliary function that lets me cons just a single element into a v.
+auxiliary function that lets me cons just a single element into a vector.
 
 The challenge here is providing the actual proof that the element I want to cons respects
 the order, because we can either be cons-ing the element to an empty list or a non-empty
 list. In simpler terms, we either need to provide a reflexive proof or a proof that
-the element that we want to add relates with the head of the non-empty v.
+the element that we want to add relates with the head of the non-empty vector.
 
 Coming with a suitable, ergonomic type signature was hard, but ultimately I found this one
 where one passes a function that computes the proof for us, for an arbitrary value.
 
-```
+```agda
   cons : ∀ {n} {ℓ} {A} {_≾_ : Rel A ℓ}
        → (a : A)
        → Vector {ℓ} A _≾_ n
@@ -126,14 +132,14 @@ where one passes a function that computes the proof for us, for an arbitrary val
   cons a (x ∷ y ∷ v) f = (a ∷ y ∷ cons a v f) {f y}
 ```
 
-This is my miserable attempt to define the tail function on refined vs. I thought
+This is my miserable attempt to define the tail function on refined vectors. I thought
 I needed the cons function but it appears I can not produce the proof I need so easily.
 
 While trying to define tail I discovered a major flaw on my data type which is I can only
-enforce the order in a non-transitive way. E.g. the v 1 2 0 1 would be valid, because
+enforce the order in a non-transitive way. E.g. the vector `[1, 2, 0, 1]` would be valid, because
 I do not require any proof between 2 and 0.
 
-```
+```agda
 -- tail : ∀ {n} {A} {_≾_} {reflexive : Reflexive _≾_}
 --      → Vector A _≾_ (1 + n)
 --      → Vector A _≾_ n
@@ -146,29 +152,30 @@ I do not require any proof between 2 and 0.
 
 I need to reformulate my data type.
 
-```
+```agda
 module Attempt2 where
 ```
-We need to roll our own ⊤ data type, for reasons enumerated below.
 
-```
+We need to roll our own `⊤` data type, for reasons enumerated below.
+
+```agda
   open Unit
 ```
 
 After much thinking I think I can maybe fix my problem with a mutual recursive data type.
 Here's what I thought about:
 
-Two refined v types, and in Agda if I want to define mutual recursive data types
+Two refined vector types, and in Agda if I want to define mutual recursive data types
 I have to provide the type signature first and only then the constructor declarations
 
-```
+```agda
   data Vectorᵐ₁ {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → Set ℓ
   data Vectorᵐ₂ {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → Set ℓ
 ```
 
-One wrapper to uniformize the API
+One wrapper to normalise the API
 
-```
+```agda
   Vector : {ℓ : Level} → (A : Set ℓ) → Rel A ℓ → ℕ → Set ℓ
   Vector A _≾_ n = Vectorᵐ₁ A _≾_ n
 ```
@@ -180,7 +187,8 @@ of the list if it is non-empty or just returns the element to cons.
 This is needed to calculate which type of proof one needs to give. If we are consing something
 to the empty list we need to provide a reflexive proof, otherwise a relation proof. As we are
 going to see below.
-NOTE: We have to declare these functions in the same way we are doing for our recursive types
+
+**NOTE**: We have to declare these functions in the same way we are doing for our recursive types
 because we are going to have to include them in the data declarations.
 
 Deprecated reason:
@@ -188,7 +196,7 @@ Deprecated reason:
 It appears that requiring a reflexive proof is too restrictive. We should ditch
 that.
 
-```
+```agda
   -- test : Vector ℕ (_<_) 2
   -- test = (1 ∷ (2 ∷ []) {{!!}}) {s≤s (s≤s z≤n)}
   --
@@ -202,22 +210,22 @@ that.
 ```
 
 My two Vector types are going to have only a cons constructor and not a 2-cons constructor.
-These proof-≾ functions take the parameters of the cons constructor and output the required
+These `proof-≾` functions take the parameters of the cons constructor and output the required
 order proof obligation. If the list is empty we do not require any proof obligation as doing so
 would be too restrictive (read above). If the list is non-empty we require a proof obligation
-that a ≾ head v.
+that `a ≾ head v`.
 
-```
+```agda
   proof-≾₁ : ∀ {ℓ} {n} {A} {_≾_} → A → Vectorᵐ₁ {ℓ} A _≾_ n → Set ℓ
   proof-≾₂ : ∀ {ℓ} {n} {A} {_≾_} → A → Vectorᵐ₂ {ℓ} A _≾_ n → Set ℓ
 ```
 
-As mentioned above our Vectorᵐ types are mutually recursive. Both have an empty list constructor
+As mentioned above our `Vectorᵐ` types are mutually recursive. Both have an empty list constructor
 and a cons constructor. The cons constructor receives the element to cons, a list of the opposite
-type, either Vectorᵐ₁ or Vectorᵐ₂, and a proof that the element we want to cons respects the order
-given the result of headₐ, which as I explained above will be either a ≾ a or a ≾ head v .
+type, either `Vectorᵐ₁` or `Vectorᵐ₂`, and a proof that the element we want to cons respects the order
+given the result of `headₐ`, which as I explained above will be either `a ≾ a` or `a ≾ head v` .
 
-```
+```agda
   data Vectorᵐ₁ {ℓ} A _≾_ where
     []  : Vectorᵐ₁ A _≾_ 0
     _∷_ : ∀ {n} (a : A) (v : Vectorᵐ₂ A _≾_ n) → {a≾b : proof-≾₂ {ℓ} {n} {A} {_≾_} a v} → Vectorᵐ₁ A _≾_ (1 + n)
@@ -227,11 +235,11 @@ given the result of headₐ, which as I explained above will be either a ≾ a o
     _∷_ : ∀ {n} (a : A) (v : Vectorᵐ₁ A _≾_ n) → {a≾b : proof-≾₁ {ℓ} {n} {A} {_≾_} a v} → Vectorᵐ₂ A _≾_ (1 + n)
 ```
 
-Finally we define the body of proof-≾ here. Notice the overloading of the constructor operators!
+Finally we define the body of `proof-≾` here. Notice the overloading of the constructor operators!
 In the empty list case we realise that ⊤ from Data.Unit is not universe polymorphic so we need to
 roll our own.
 
-```
+```agda
   proof-≾₁ _ [] = ⊤
   proof-≾₁ {_≾_ = _≾_} a (b ∷ v) = a ≾ b
 
@@ -239,19 +247,19 @@ roll our own.
   proof-≾₂ {_≾_ = _≾_} a (b ∷ v) = a ≾ b
 ```
 
-Great! Now lets see how we could build a strictly ordered natural number v.
+Great! Now lets see how we could build a strictly ordered natural number vector.
 
-```
+```agda
   test : Vector ℕ (_<_) 2
   test = (1 ∷ (2 ∷ []) {tt}) {s≤s (s≤s z≤n)}
 ```
 
 Now regarding the first question, which is about proving that for a Vector
-indexed by the bottom relation the only possible v is the empty one,
+indexed by the bottom relation the only possible vector is the empty one,
 we know our intuition was flawed and that requiring a proof for the singleton
 case is too restrictive. Hence our question needs to be reformulated:
 
-```
+```agda
   absurd-has-length-<2 : ∀ {n : ℕ} → Vector ℕ (λ _ _ → ⊥) n → n < 2
   absurd-has-length-<2 [] = s≤s z≤n
   absurd-has-length-<2 (a ∷ []) = s≤s (s≤s z≤n)
@@ -261,7 +269,7 @@ So far so good. Now onto the next question. Can we write a sorting algorithm?
 Let's start with something on naturals and then see if we can generalize.
 
 I am thinking about a append or quicksort, but for that we need to be able to split
-the v in half in each recursive step. For that we need some auxiliary functions:
+the vector in half in each recursive step. For that we need some auxiliary functions:
 
 First some conversion functions. These all need to be declared in a mutual recursive fashion.
 So signature first and only then the implementation.
@@ -269,12 +277,12 @@ So signature first and only then the implementation.
 Something to note is that the order in which we define the signatures is the order by which
 we need to define the implementation.
 
-Oh no, I hitted a wall. It seems, I am not able to pass the needed proof obligation.
+Oh no, I hit a wall. It seems, I am not able to pass the needed proof obligation.
 And all this mutual recursive machinery is very cumbersome to deal with.
-It feels like I should be able to prove this but I guess I just havee to trust Agda on this
+It feels like I should be able to prove this but I guess I just have to trust Agda on this
 one.
 
-```
+```agda
   -- v₁-to-v₂ : ∀ {ℓ} {n} {A} {_≾_} → Vectorᵐ₁ {ℓ} A _≾_ n → Vectorᵐ₂ {ℓ} A _≾_ n
   -- v₂-to-v₁ : ∀ {ℓ} {n} {A} {_≾_} → Vectorᵐ₂ {ℓ} A _≾_ n → Vectorᵐ₁ {ℓ} A _≾_ n
   --
@@ -289,7 +297,7 @@ one.
 These lemmas would be useful to have but since I am not able to provide them, it means I must
 change my data type formulation again...
 
-```
+```agda
   -- v₁-to-v₂ [] = []
   -- v₁-to-v₂ ((a ∷ v) {p}) = (a ∷ v₂-to-v₁ v) {proof-≾₂-to-proof-≾₁ a v p}
   --
@@ -315,7 +323,7 @@ change my data type formulation again...
   -- v₁₂-to-v ((a ∷ v) {p}) = cong (λ v′ → (a ∷ v′) {{!!}}) (v₂₁-to-v v)
 ```
 
-```
+```agda
 module Attempt3 where
 
   open Unit
@@ -330,20 +338,20 @@ Basically one that has the same proof obligation strategy and that allow us to s
 
 I start by defining my Vector data type with the same type signature as the previous attempts
 
-```
+```agda
   data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → Set ℓ
 ```
 
 And also define the signature for me proof obligation function. This function should behave in
 the same way it did for the previous attempt.
 
-```
+```agda
   proof-≾ : ∀ {ℓ} {n} {A} {_≾_} → A → Vector {ℓ} A _≾_ n → Set ℓ
 ```
 
 So now our Vector data type and proof obligation function look much simpler.
 
-```
+```agda
   data Vector A _≾_ where
     []  : Vector A _≾_ 0
     _∷_ : ∀ {n} (a : A) (v : Vector A _≾_ n) → {a≾b : proof-≾ a v} → Vector A _≾_ (1 + n)
@@ -354,7 +362,7 @@ So now our Vector data type and proof obligation function look much simpler.
 
 Lets do our first tests drives:
 
-```
+```agda
   test : Vector ℕ (_<_) 2
   test = (1 ∷ (2 ∷ []) {tt}) {s≤s (s≤s z≤n)}
 
@@ -363,13 +371,13 @@ Lets do our first tests drives:
   absurd-has-length-<2 (a ∷ []) = s≤s (s≤s z≤n)
 ```
 
-Aparentely everything looks good! So let's pursue our quest of writing the sorting algorithm
+Apparently everything looks good! So let's pursue our quest of writing the sorting algorithm
 one more time!
 
 First some sanity test that we are able to implement some simple functions over
 our data type:
 
-```
+```agda
   head : ∀ {ℓ} {n} {A} {_≾_}
        → Vector {ℓ} A _≾_ (1 + n)
        → A
@@ -393,13 +401,13 @@ operation to have is the append function that appends two lists/vectors
 together. Another common one is the merge function that given two lists
 of sortable elements, we are able to merge the lists together in a sorted
 manner. Curiously the append for our refined vector data type has to
-preserve the order aswell which means that for this particular data type
+preserve the order as well which means that for this particular data type
 the append is actually the merge function, since there's only one way we
 can append two vectors preserving their relation (by merging the)!
 
 Here we define some auxiliary number shuffling functions:
 
-```
+```agda
   v-shuffle₀ : ∀ {ℓ} {n} {A} {_≾_}
       → Vector {ℓ} A _≾_ n
       → Vector {ℓ} A _≾_ (n + 0)
@@ -448,10 +456,10 @@ Here we define some auxiliary number shuffling functions:
 
 Appending two polymorphic refined vs is proving super hard, so I am
 going to first try and implement it on Nats and see how/if is going to
-work out. And then hopeefully will gather enough insights to generalize it
+work out. And then hopefully will gather enough insights to generalize it
 later.
 
-```
+```agda
   -- append : ∀ {m n} {ℓ} {A} {_≾_}
   --            {total : Total _≾_}
   --        → Vector {ℓ} A _≾_ m
@@ -468,32 +476,32 @@ First some insights about my attempts to define polymorphic append:
   - I didn't go through the trouble of setting up some examples and ended
     up finding obstacles that coincided with counterexamples regarding my
     intuition on how things should work.
-  - Only after going through some examples I got enlightned about the
+  - Only after going through some examples I got enlightened about the
     obstacles Agda was giving me:
 
 It seems that specializing to Nats helps a little bit and makes it clearer
 why Agda does not like what I am trying to do.
 
-```
+```agda
   -- append-ℕ : ∀ {m n} {total : Total _≤_}
   --          → (as : Vector ℕ _≤_ m)
   --          → (bs : Vector ℕ _≤_ n)
   --          → Vector ℕ _≤_ (m + n)
 ```
 
-It seems that due the way my data type is designed (proof-≾ mentions the Vector
+It seems that due the way my data type is designed (`proof-≾` mentions the Vector
 data type and vice versa), in the recursive case of the append function, I ended
 up with something like this in my goal:
 
 `_a≾b_409 : proof-≾ a (append-ℕ-aux as (b ∷ bs))a`
 
-Because `proof-≾` has a `v` as its second argument you end up with the recursive
+Because `proof-≾` has a `v` (Vector) as its second argument you end up with the recursive
 call the goal, which is tricky (perhaps impossible) to deal with.
 
 So I guess this means I should figure out a better, clever way to design the
 data structure in such a way that does not give Agda such a bad time.
 
-```
+```agda
 module Attempt5 where
 
   open import Data.Nat.Properties using (+-comm; +-identityʳ)
@@ -509,26 +517,30 @@ evidence that makes Agda able to get through the recursive step on append.
 
 Let me show case what they suggest in the paper:
 
-The only difference here is that we require a Total constraint on the order
-and we also index by and arbitrary element of type A (the lower bound).
+The only difference here is that we require a `Total` constraint on the order
+and we also index by and arbitrary element of type `A` (the lower bound).
 This lower bound means that the Vector shall only contain values greater or equal than
 it.
 
-```
+```agda
   data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) (t : Total _≾_) : ℕ → A → Set ℓ where
 ```
-The empty v case does not care what the lower bound is
-```
+The empty vector case does not care what the lower bound is
+
+```agda
     [] : {lowerBound : A} → Vector A _≾_ t 0 lowerBound
 ```
+
 In cons case, the head must exceed the prescribed lower bound and bound the tail in turn.
-This means lowerBound is an open bound.
-```
+This means `lowerBound` is an open bound.
+
+```agda
     _∷_ : {lowerBound : A} {n : ℕ} → (a : A) → {lowerBound ≾ a} → Vector A _≾_ t n a → Vector A _≾_ t (suc n) lowerBound
 ```
 
 Some examples:
-```
+
+```agda
   ≤-total : Total _≤_
   ≤-total zero zero = inj₁ z≤n
   ≤-total zero (suc y) = inj₁ z≤n
@@ -544,12 +556,12 @@ Some examples:
   example2 = _∷_ 2 {z≤n} (_∷_ 4 {s≤s (s≤s z≤n)} (_∷_ 6 {s≤s (s≤s (s≤s (s≤s z≤n)))} []))
 ```
 
-Now in the paper, I think they simplify the append (append) function type signature by requiring
+Now in the paper, I think they simplify the merge (append) function type signature by requiring
 that the two vectors share the same lower bound, so the result also shares it. I think we might be able
 to get away with being a little more general, but we will let Agda be the judge of that.
 Here's the definition of append:
 
-```
+```agda
   head : ∀ {ℓ} {A} {b : A} {n : ℕ} {_≾_} {total : Total _≾_}→ Vector {ℓ} A _≾_ total (suc n) b → A
   head (a ∷ _) = a
 
@@ -571,13 +583,14 @@ Here's the definition of append:
 ```
 
 If I C-c C-n inside this hole I get the correct result!
-```
+
+```agda
   -- example3 : Vector ℕ _≤_ ≤-total 6 0
   -- example3 = {! append example1 example2 !}
 ```
 
-As I said above I do not understand why the append function, in the paper needs the 2 vs to
-share the lower bound, that seems oddly restrictive, it should be possible to append 2 vs of
+As I said above I do not understand why the append function, in the paper needs the 2 vectors to
+share the lower bound, that seems oddly restrictive, it should be possible to append 2 vectors of
 arbitrary bounds and then the result type would have the minimum between the two. Looks reasonable,
 right? Another thing I wonder is that we might get away without passing Total in the data type,
 I like it much more we you could keep everything polymorphic and then require Total for append,
@@ -585,13 +598,13 @@ for example.
 
 Another thing I noticed is that their sorting proof besides being tied to ℕ is also a bit different
 than what I would expect. What I want is a general sorting function that given a Vector indexed
-by an arbitrary _≾_ relation, returns a new one indexed by a different one. Is it possible? I don't
+by an arbitrary `_≾_` relation, returns a new one indexed by a different one. Is it possible? I don't
 really know, but it seems a nice guess. Probably the output relation needs to have stronger properties
 like being an Equivalence relation, we'll see!
 
 Let's try that in attempt 6!
 
-```
+```agda
 module Attempt6 where
 
   open Unit
@@ -604,30 +617,33 @@ definitions and I want to experiment with it. From reading the paper they said f
 complex functions we might actually need a upper bound, which makes sense to me, but let's
 leave that out of the equation for now.
 
-```
+```agda
   proof-≾ : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} → (n : ℕ) → (a lowerBound : A) → Set ℓ
   proof-≾ {ℓ} zero a lowerBound = ⊤
   proof-≾ {_≾_ = _≾_} (suc n) a lowerBound = a ≾ lowerBound
 ```
 
-```
+```agda
   data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) : ℕ → A → Set ℓ where
 ```
-As previous, the empty v case does not care what the lower bound is
-```
+As previous, the empty vector case does not care what the lower bound is
+
+```agda
     [] : {lowerBound : A} → Vector A _≾_ 0 lowerBound
 ```
+
 In cons case, the head must be smaller than the tail's lower bound which in turn will
 make the resulting type's lower bound be the head.
-This means lowerBound is a closed bound.
+This means `lowerBound` is a closed bound.
 
 The way this is defined means that, for example, the singleton list will need to require
-_some_ proof, which is a bit disapointing. I guess this is why they went for a open bound in
+_some_ proof, which is a bit disappointing. I guess this is why they went for a open bound in
 the paper, but I really want this to work so I'll do one small trick. With
-proof-≾ I'll check the length of the tail v, and if it is 0 then ask for the trivial
-proof (⊤). Since proof-≾ is not mutual recursive with the Vector definition I hope
+`proof-≾` I'll check the length of the tail vector, and if it is 0 then ask for the trivial
+proof (`⊤`). Since `proof-≾` is not mutual recursive with the Vector definition I hope
 this trick will work out nicely.
-```
+
+```agda
     _∷_ : {lowerBound : A} {n : ℕ}
         → (a : A)
         → Vector A _≾_ n lowerBound
@@ -641,7 +657,7 @@ You might notice that now copy pasting exactly the same examples from attempt 5
 won't type check, that is because the head of the v needs to be the Vector's
 lower bound.
 
-```
+```agda
   example1 : Vector ℕ _≤_ 3 0
   example1 = (0 ∷ (3 ∷ (5 ∷ [] {lowerBound = zero})) {s≤s (s≤s (s≤s z≤n))}) {z≤n}
 
@@ -653,15 +669,15 @@ It works! It is a shame that we have to fill so much information, but let's cont
 where this formulation leads us.
 
 Next up is the append/merge function, we shall attempt to generalize the
-type signature in order to accomodate any lower bound input vectors, and
+type signature in order to accommodate any lower bound input vectors, and
 return one, which lower bound is the minimum of the inputs.
 
-Minimum between two elements that can be totaly ordered. This function
-also has the length of the Vector in consideration, since the empty v
-case requires any lowerbound we make sure that if the index is 0 then
-the minimum lowerbound becomes that of the non-empty list.
+Minimum between two elements that can be totally ordered. This function
+also has the length of the Vector in consideration, since the empty vector
+case requires any `lowerbound` we make sure that if the index is 0 then
+the minimum `lowerbound` becomes that of the non-empty list.
 
-```
+```agda
   min : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_}
       → ℕ → A
       → ℕ → A
@@ -675,7 +691,7 @@ the minimum lowerbound becomes that of the non-empty list.
 
 Vector auxiliary lemmas to shuffle around length index
 
-```
+```agda
   v-shuffle₀ : ∀ {ℓ} {A} {_≾_} {n} {b}
              → Vector {ℓ} A _≾_ n b
              → Vector {ℓ} A _≾_ (n + 0) b
@@ -797,7 +813,7 @@ Vector auxiliary lemmas to shuffle around length index
 Success! We managed to write append with our closed bounds Vector data type.
 And even managed to be slightly more general on the input vector's bounds.
 
-```
+```agda
   ≤-total : Total _≤_
   ≤-total zero zero = inj₁ z≤n
   ≤-total zero (suc y) = inj₁ z≤n
@@ -817,7 +833,8 @@ And even managed to be slightly more general on the input vector's bounds.
 ```
 
 If I C-c C-n inside this hole I get the correct result!
-```
+
+```agda
   -- example3 : Vector ℕ _≤_ 6 0
   -- example3 = {! append {total = ≤-total} example1 example2 !}
 ```
@@ -829,13 +846,13 @@ which splits our vector in half.
 
 The first problem we find here is that we have to specify the lower
 bound for the second half of the vector we are splitting and this
-bound needs to be exactly the element at index n ÷ 2 . Another insight
+bound needs to be exactly the element at index n ÷ 2. Another insight
 is that split can be seen as simply using take and drop (if we ignore
-the proof that the 2 halfs appended have to be equal to the original).
-take is straightforward to implement since the output vector preserves
+the proof that the 2 halves appended have to be equal to the original).
+`take` is straightforward to implement since the output vector preserves
 the lower bound:
 
-```
+```agda
   take : ∀ {ℓ} {A} {_≾_} {n : ℕ} {b : A}
        → (m : ℕ)
        → Vector {ℓ} A _≾_ n b
@@ -853,10 +870,10 @@ the lower bound:
       p-aux {n = suc n} {m = suc m} p = p
 ```
 
-However drop is not as easy because we have to specify also that the
+However `drop` is not as easy because we have to specify also that the
 new lower bound should be the head of the resulting list if non-empty.
 
-```
+```agda
   drop : ∀ {ℓ} {A} {_≾_} {n : ℕ} {b : A}
        → (m : ℕ)
        → Vector {ℓ} A _≾_ n b
