@@ -1,3 +1,5 @@
+# Refined Sorted Vector
+
 I have been sitting on this idea for a while: What could I possible do with a refined v
 data structure that could give me some guarantees about the order of its elements?
 
@@ -36,6 +38,8 @@ module Unit where
   record ⊤ {ℓ : Level} : Set ℓ where
     instance constructor tt
 ```
+
+## First Attempt
 
 This is the first attempt where I naively try to express in Agda what I initially had in mind
 for this idea.
@@ -151,6 +155,8 @@ I do not require any proof between 2 and 0.
 ```
 
 I need to reformulate my data type.
+
+## Second Attempt
 
 ```agda
 module Attempt2 where
@@ -322,6 +328,8 @@ change my data type formulation again...
   -- v₁₂-to-v [] = refl
   -- v₁₂-to-v ((a ∷ v) {p}) = cong (λ v′ → (a ∷ v′) {{!!}}) (v₂₁-to-v v)
 ```
+
+## Third Attempt
 
 ```agda
 module Attempt3 where
@@ -501,8 +509,10 @@ call the goal, which is tricky (perhaps impossible) to deal with.
 So I guess this means I should figure out a better, clever way to design the
 data structure in such a way that does not give Agda such a bad time.
 
+## Fourth Attempt
+
 ```agda
-module Attempt5 where
+module Attempt4 where
 
   open import Data.Nat.Properties using (+-comm; +-identityʳ)
 ```
@@ -602,10 +612,12 @@ by an arbitrary `_≾_` relation, returns a new one indexed by a different one. 
 really know, but it seems a nice guess. Probably the output relation needs to have stronger properties
 like being an Equivalence relation, we'll see!
 
-Let's try that in attempt 6!
+Let's try that in attempt 5!
+
+## Fith Attempt
 
 ```agda
-module Attempt6 where
+module Attempt5 where
 
   open Unit
 ```
