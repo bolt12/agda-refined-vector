@@ -538,14 +538,14 @@ it.
 The empty vector case does not care what the lower bound is
 
 ```agda
-    [] : {lowerBound : A} → Vector A _≾_ t 0 lowerBound
+    [] : {lb : A} → Vector A _≾_ t 0 lb
 ```
 
 In cons case, the head must exceed the prescribed lower bound and bound the tail in turn.
-This means `lowerBound` is an open bound.
+This means `lb` is an open bound.
 
 ```agda
-    _∷_ : {lowerBound : A} {n : ℕ} → (a : A) → {lowerBound ≾ a} → Vector A _≾_ t n a → Vector A _≾_ t (suc n) lowerBound
+    _∷_ : {lb : A} {n : ℕ} → (a : A) → {lb ≾ a} → Vector A _≾_ t n a → Vector A _≾_ t (suc n) lb
 ```
 
 Some examples:
@@ -630,9 +630,9 @@ complex functions we might actually need a upper bound, which makes sense to me,
 leave that out of the equation for now.
 
 ```agda
-  proof-≾ : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} → (n : ℕ) → (a lowerBound : A) → Set ℓ
-  proof-≾ {ℓ} zero a lowerBound = ⊤
-  proof-≾ {_≾_ = _≾_} (suc n) a lowerBound = a ≾ lowerBound
+  proof-≾ : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} → (n : ℕ) → (a lb : A) → Set ℓ
+  proof-≾ {ℓ} zero a lb = ⊤
+  proof-≾ {_≾_ = _≾_} (suc n) a lb = a ≾ lb
 ```
 
 ```agda
@@ -641,12 +641,12 @@ leave that out of the equation for now.
 As previous, the empty vector case does not care what the lower bound is
 
 ```agda
-    [] : {lowerBound : A} → Vector A _≾_ 0 lowerBound
+    [] : {lb : A} → Vector A _≾_ 0 lb
 ```
 
 In cons case, the head must be smaller than the tail's lower bound which in turn will
 make the resulting type's lower bound be the head.
-This means `lowerBound` is a closed bound.
+This means `lb` is a closed bound.
 
 The way this is defined means that, for example, the singleton list will need to require
 _some_ proof, which is a bit disappointing. I guess this is why they went for a open bound in
@@ -656,10 +656,10 @@ proof (`⊤`). Since `proof-≾` is not mutual recursive with the Vector definit
 this trick will work out nicely.
 
 ```agda
-    _∷_ : {lowerBound : A} {n : ℕ}
+    _∷_ : {lb : A} {n : ℕ}
         → (a : A)
-        → Vector A _≾_ n lowerBound
-        → {proof-≾ {ℓ} {A} {_≾_ = _≾_} n a lowerBound}
+        → Vector A _≾_ n lb
+        → {proof-≾ {ℓ} {A} {_≾_ = _≾_} n a lb}
         → Vector A _≾_ (suc n) a
 ```
 
@@ -671,10 +671,10 @@ lower bound.
 
 ```agda
   example1 : Vector ℕ _≤_ 3 0
-  example1 = (0 ∷ (3 ∷ (5 ∷ [] {lowerBound = zero})) {s≤s (s≤s (s≤s z≤n))}) {z≤n}
+  example1 = (0 ∷ (3 ∷ (5 ∷ [] {lb = zero})) {s≤s (s≤s (s≤s z≤n))}) {z≤n}
 
   example2 : Vector ℕ _≤_ 3 1
-  example2 = (1 ∷ (4 ∷ (6 ∷ [] {lowerBound = zero})) {s≤s (s≤s (s≤s (s≤s z≤n)))}) {s≤s z≤n}
+  example2 = (1 ∷ (4 ∷ (6 ∷ [] {lb = zero})) {s≤s (s≤s (s≤s (s≤s z≤n)))}) {s≤s z≤n}
 ```
 
 It works! It is a shame that we have to fill so much information, but let's continue seeing
@@ -691,14 +691,18 @@ the minimum `lowerbound` becomes that of the non-empty list.
 
 ```agda
   min : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_}
+      → A → A → A
+  min {total = total} a b with total a b
+  ... | inj₁ a≾b = a
+  ... | inj₂ b≾a = b
+  
+  min-n : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_}
       → ℕ → A
       → ℕ → A
       → A
-  min zero _ (suc _) b = b
-  min (suc _) a zero _ = a
-  min {total = total} _ a _ b with total a b
-  ... | inj₁ _ = a
-  ... | inj₂ _ = b
+  min-n zero _ (suc _) b = b
+  min-n (suc _) a zero _ = a
+  min-n {total = total} _ a _ b = min {total = total} a b
 ```
 
 Vector auxiliary lemmas to shuffle around length index
@@ -751,7 +755,7 @@ Vector auxiliary lemmas to shuffle around length index
                 → (xs : Vector {ℓ} A _≾_ (n + 0) b)
                 → v-shuffle₀ (v-shuffle₀⁻¹ xs) ≡ xs
   v-shuffle₀-id {n = zero} [] = refl
-  v-shuffle₀-id {ℓ} {A} {_≾_} {n = suc n} (_∷_ {lowerBound = lb} b bs {p} ) =
+  v-shuffle₀-id {ℓ} {A} {_≾_} {n = suc n} (_∷_ {lb = lb} b bs {p} ) =
     begin
       ((b ∷ v-shuffle₀ (v-shuffle₀⁻¹ bs)) {proof-≾-shuffle₀ {n = n} (proof-≾-shuffle₀⁻¹ {n = n} p)})
       ≡⟨ v-cong b bs p ⟩
@@ -786,32 +790,32 @@ Vector auxiliary lemmas to shuffle around length index
   proof-≾-shuffle⁻¹ {m = zero} p = p
   proof-≾-shuffle⁻¹ {m = suc m} p = p
 
-  append-aux₀ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lowerBound : A}
-         → proof-≾ {ℓ} {A} {_≾_} m a lowerBound
+  append-aux₀ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lb : A}
+         → proof-≾ {ℓ} {A} {_≾_} m a lb
          → a ≾ b
-         → proof-≾ {ℓ} {A} {_≾_} (m + suc n) a (min {total = total} m lowerBound (suc n) b)
+         → proof-≾ {ℓ} {A} {_≾_} (m + suc n) a (min-n {total = total} m lb (suc n) b)
   append-aux₀ {m = zero} _ p′ = p′
-  append-aux₀ {total = total} {m = suc m} {b = b} {lowerBound = lb} p p′ with total lb b
+  append-aux₀ {total = total} {m = suc m} {b = b} {lb = lb} p p′ with total lb b
   ... | inj₁ lb≾b = p
   ... | inj₂ b≾lb = p′
 
-  append-aux₁ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lowerBound : A}
-         → proof-≾ {ℓ} {A} {_≾_} n b lowerBound
+  append-aux₁ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lb : A}
+         → proof-≾ {ℓ} {A} {_≾_} n b lb
          → b ≾ a
-         → proof-≾ {ℓ} {A} {_≾_} (m + suc n) b (min {total = total} (suc m) a n lowerBound)
+         → proof-≾ {ℓ} {A} {_≾_} (m + suc n) b (min-n {total = total} (suc m) a n lb)
   append-aux₁ {m = zero} {n = zero} p p′ = p′
   append-aux₁ {m = suc m} {n = zero} p p′ = p′
-  append-aux₁ {total = total} {m = zero} {n = suc n} {a = a} {lowerBound = lb} p p′ with total a lb
+  append-aux₁ {total = total} {m = zero} {n = suc n} {a = a} {lb = lb} p p′ with total a lb
   ... | inj₁ _ = p′
   ... | inj₂ _ = p
-  append-aux₁ {total = total} {m = suc m} {n = suc n} {a = a} {lowerBound = lb} p p′ with total a lb
+  append-aux₁ {total = total} {m = suc m} {n = suc n} {a = a} {lb = lb} p p′ with total a lb
   ... | inj₁ _ = p′
   ... | inj₂ _ = p
 
   append : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {b b′}
         → Vector {ℓ} A _≾_ m b
         → Vector {ℓ} A _≾_ n b′
-        → Vector {ℓ} A _≾_ (m + n) (min {total = total} m b n b′)
+        → Vector {ℓ} A _≾_ (m + n) (min-n {total = total} m b n b′)
   append {m = zero} {n = zero} _ _ = []
   append {m = zero} {n = suc n} _ bs = bs
   append {m = suc m} {n = zero} as _ = v-shuffle₀ as
@@ -833,22 +837,13 @@ And even managed to be slightly more general on the input vector's bounds.
   ≤-total (suc x) (suc y) with ≤-total x y
   ... | inj₁ x≤y = inj₁ (s≤s x≤y)
   ... | inj₂ y≤x = inj₂ (s≤s y≤x)
-
-  ≤-reflexive : Reflexive _≤_
-  ≤-reflexive {zero} = z≤n
-  ≤-reflexive {suc b} = s≤s ≤-reflexive
-
-  ≤-transitive : Transitive _≤_
-  ≤-transitive z≤n z≤n = z≤n
-  ≤-transitive z≤n (s≤s j≤k) = z≤n
-  ≤-transitive (s≤s i≤j) (s≤s j≤k) = s≤s (≤-transitive i≤j j≤k)
 ```
 
 If I C-c C-n inside this hole I get the correct result!
 
 ```agda
-  -- example3 : Vector ℕ _≤_ 6 0
-  -- example3 = {! append {total = ≤-total} example1 example2 !}
+  -- appendExample : Vector ℕ _≤_ 6 0
+  -- appendExample = {! append {total = ≤-total} example1 example2 !}
 ```
 
 One less obstacle in pursuit of our sorting function!
@@ -886,9 +881,97 @@ However `drop` is not as easy because we have to specify also that the
 new lower bound should be the head of the resulting list if non-empty.
 
 ```agda
-  drop : ∀ {ℓ} {A} {_≾_} {n : ℕ} {b : A}
-       → (m : ℕ)
-       → Vector {ℓ} A _≾_ n b
-       → Vector {ℓ} A _≾_ (m ⊓ n) {!!}
-  drop m v = {!!}
+--  drop : ∀ {ℓ} {A} {_≾_} {n : ℕ} {b : A}
+--       → (m : ℕ)
+--       → Vector {ℓ} A _≾_ n b
+--       → Vector {ℓ} A _≾_ (m ⊓ n) {!!}
+--  drop m v = {!!}
+```
+
+This means that algorithms like mergesort or quicksort, that need to split the
+array in half, require invariants that are not very easily or naturally expressable
+on our refined vector data type. So, maybe this is a hint that we should pick a different
+algorithm, but which one? After some thinking I think insertion sort might be the most natural.
+
+There's only one important part for insertion sort and that is the `insert` function: 
+
+```agda
+  insert : ∀ {ℓ} {A} {_≾_} {n} {total : Total _≾_} {b}
+         → (a : A)
+         → Vector {ℓ} A _≾_ n b
+         → Vector {ℓ} A _≾_ (1 + n) (min {total = total} a b)
+  insert {total = total} {b = b} a v@[] with total a b
+  ... | inj₁ a≾b = a ∷ v
+  ... | inj₂ b≾a = b ∷ v
+  insert {n = suc zero} {total = total} a ((b ∷ v@[]) {pb}) with total a b
+  ... | inj₁ a≾b = (a ∷ (b ∷ v)) {a≾b}
+  ... | inj₂ b≾a = (b ∷ (a ∷ v)) {b≾a}
+  insert {n = suc (suc n)} {total = total} a ((b ∷ v) {pb}) with total a b
+  ... | inj₁ a≾b = (a ∷ (b ∷ v) {pb}) {a≾b}
+  ... | inj₂ b≾a = (b ∷ insert {total = total} a v) {p-aux {total = total} {n = n} b≾a pb}
+     where
+       p-aux : ∀ {ℓ} {A : Set ℓ} {_≾_} {total : Total _≾_} {n : ℕ} {a b lb : A}
+             → a ≾ lb
+             → a ≾ b
+             → a ≾ min {total = total} lb b
+       p-aux {total = total} {b = b} {lb = lb} a≾lb a≾b with total lb b
+       ... | inj₁ _ = a≾lb
+       ... | inj₂ _ = a≾b
+```
+
+This function requires `_≾_` to be a Total order and we can see it being needed to branch on different
+cases and to prove our auxiliar lemma that allow us to massage our invariants into the correct type.
+
+All that it's left is to write insertion sort which basically calls `insert` recursively for all elements
+in a given vector:
+
+```agda
+  minimumBy : ∀ {ℓ} {A} {_≼_ _≾_ : Rel A ℓ} {n} {a}
+            → Total _≾_
+            → Vector {ℓ} A _≼_ (1 + n) a
+            → A
+  minimumBy total (a ∷ []) = a
+  minimumBy {n = suc n} total (a ∷ v) = min {total = total} a (minimumBy total v)
+
+  insertionSort : ∀ {ℓ} {A} {_≼_ _≾_ : Rel A ℓ} {n} {total : Total _≾_} {a}
+                → (v : Vector {ℓ} A _≼_ (suc n) a)
+                → Vector {ℓ} A _≾_ (suc n) (minimumBy total v)
+  insertionSort {n = zero} {total = total} (a ∷ ([] {lb = lb})) = a ∷ ([] {lb = lb})
+  insertionSort {n = suc n} {total = total} (a ∷ vv@(_ ∷ _)) = insert {total = total} a (insertionSort {total = total} vv)
+```
+
+Insertion sort requires that the lowerbound be the minimum value of the input vector according to a particular order.
+We require that by building the `minimumBy` function and plug it into the the return vector type of the `insertionSort`
+function. Yay dependent types!
+
+After doing that the function is rather straightforward to write, requiring only pattern match on the vector so it can
+know which branch from `minimumBy` to use. There's a slight limitation to the way I ended up doing things which is
+the vector needs to be non-empty, since we can not compute the minimum value of an empty vector. This could be fixed by
+requiring something like a lattice with a bottom value smaller than all other values of a particular Set. I am curious
+to see if using open lower bound would relax this requirement too.
+
+It looks like our hunch about changing sorting algorithms turned out to be true, and in hindsight I believe the reason to
+be our data type is not able to elegantly capture the required invariants of divide-and-conquer algorithms, at least while trying
+to be relation and data polymorphic.
+
+All that's left is to give this a try with our example vectors:
+
+
+```agda
+  ≥-total : Total _≥_
+  ≥-total zero zero = inj₁ z≤n
+  ≥-total zero (suc y) = inj₂ z≤n
+  ≥-total (suc n) zero = inj₁ z≤n
+  ≥-total (suc x) (suc y) with ≥-total x y
+  ... | inj₁ x≥y = inj₁ (s≤s x≥y)
+  ... | inj₂ y≥x = inj₂ (s≤s y≥x)
+
+  example3 : Vector ℕ _≥_ 3 5
+  example3 = (5 ∷ (3 ∷ (0 ∷ [] {lb = zero})) {z≤n}) {s≤s (s≤s (s≤s z≤n))}
+
+  example4 : Vector ℕ _≥_ 3 6
+  example4 = (6 ∷ (4 ∷ (1 ∷ [] {lb = zero})) {s≤s z≤n}) {s≤s (s≤s (s≤s (s≤s z≤n)))}
+
+  sortedExample : Vector ℕ _≤_ 6 0
+  sortedExample = {! insertionSort {total = ≤-total} (append {total = ≥-total} example3 example4)!}
 ```
