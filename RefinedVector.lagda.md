@@ -600,15 +600,16 @@ Here's the definition of append:
   vec2vec {A = A} {_≾_} {total} {b} {m} {n} v
     rewrite cong (λ n → Vector A _≾_ total n b) (suc-m+n≡m+suc-n m n) = v
 
-  append : ∀ {ℓ} {A} {m n : ℕ} {_≾_} {total : Total _≾_}→ {b : A}
+  append : ∀ {ℓ} {A} {m n : ℕ} {_≾_} {b : A}
+         → (total : Total _≾_)
          → Vector {ℓ} A _≾_ total m b
          → Vector {ℓ} A _≾_ total n b
          → Vector {ℓ} A _≾_ total (m + n) b
-  append {m = zero} _ bs = bs
-  append {m = m} {zero} as _ rewrite +-identityʳ m = as
-  append {total = total} (_∷_ x {b≾x} xs ) (_∷_ y {b≾y} ys) with total x y
-  ... | inj₁ x≾y = _∷_ x {b≾x} (append {b = x}  xs (_∷_ y {x≾y} ys))
-  ... | inj₂ y≾x = _∷_ y {b≾y} (vec2vec (append {b = y} (_∷_ x {y≾x} xs) ys))
+  append {m = zero} _ _ bs = bs
+  append {m = m} {zero} _ as _ rewrite +-identityʳ m = as
+  append total (_∷_ x {b≾x} xs ) (_∷_ y {b≾y} ys) with total x y
+  ... | inj₁ x≾y = _∷_ x {b≾x} (append {b = x} total xs (_∷_ y {x≾y} ys))
+  ... | inj₂ y≾x = _∷_ y {b≾y} (vec2vec (append {b = y} total (_∷_ x {y≾x} xs) ys))
 ```
 
 If I C-c C-n inside this hole I get the correct result!
@@ -709,19 +710,21 @@ case requires any `lowerbound` we make sure that if the index is 0 then
 the minimum `lowerbound` becomes that of the non-empty list.
 
 ```agda
-  min : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_}
+  min : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ}
+      → Total _≾_
       → A → A → A
-  min {total = total} a b with total a b
+  min total a b with total a b
   ... | inj₁ a≾b = a
   ... | inj₂ b≾a = b
 
-  min-n : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_}
-      → ℕ → A
-      → ℕ → A
-      → A
-  min-n zero _ (suc _) b = b
-  min-n (suc _) a zero _ = a
-  min-n {total = total} _ a _ b = min {total = total} a b
+  min-n : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ}
+        → (Total _≾_)
+        → ℕ → A
+        → ℕ → A
+        → A
+  min-n _ zero _ (suc _) b = b
+  min-n _ (suc _) a zero _ = a
+  min-n total _ a _ b      = min total a b
 ```
 
 Vector auxiliary lemmas to shuffle around length index
@@ -812,46 +815,53 @@ Vector auxiliary lemmas to shuffle around length index
   proof-≾-shuffle⁻¹ {m = zero} p  = p
   proof-≾-shuffle⁻¹ {m = suc m} p = p
 
-  append-aux₀ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lb : A}
+  append-aux₀ : ∀ {ℓ} {A} {_≾_} {m n} {a : A}
+              → (total : Total _≾_)
+              → (b : A)
+              → (lb : A)
               → proof-≾ {ℓ} {A} {_≾_} m a lb
               → a ≾ b
               → proof-≾ {ℓ} {A} {_≾_} (m + suc n) a
-                                      (min-n {total = total} m lb (suc n) b)
-  append-aux₀ {m = zero} _ p′ = p′
-  append-aux₀ {total = total} {m = suc m} {b = b} {lb = lb} p p′ with total lb b
+                                      (min-n total m lb (suc n) b)
+  append-aux₀ {m = zero} _ _ _ _ p′ = p′
+  append-aux₀ {m = suc m} total b lb p p′ with total lb b
   ... | inj₁ lb≾b = p
   ... | inj₂ b≾lb = p′
 
-  append-aux₁ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lb : A}
+  append-aux₁ : ∀ {ℓ} {A} {_≾_} {m n} {b : A}
+              → (total : Total _≾_)
+              → (a : A)
+              → (lb : A)
               → proof-≾ {ℓ} {A} {_≾_} n b lb
               → b ≾ a
               → proof-≾ {ℓ} {A} {_≾_} (m + suc n) b
-                                      (min-n {total = total} (suc m) a n lb)
-  append-aux₁ {m = zero} {n = zero} p p′  = p′
-  append-aux₁ {m = suc m} {n = zero} p p′ = p′
-  append-aux₁ {total = total} {m = zero} {n = suc n} {a = a} {lb = lb} p p′
+                                      (min-n total (suc m) a n lb)
+  append-aux₁ {m = zero} {n = zero} _ _ _ p p′  = p′
+  append-aux₁ {m = suc m} {n = zero} _ _ _ p p′ = p′
+  append-aux₁ {m = zero} {n = suc n} total a lb p p′
     with total a lb
   ... | inj₁ a≾lb = p′
   ... | inj₂ lb≾a = p
-  append-aux₁ {total = total} {m = suc m} {n = suc n} {a = a} {lb = lb} p p′
+  append-aux₁ {m = suc m} {n = suc n} total a lb p p′
     with total a lb
   ... | inj₁ a≾lb = p′
   ... | inj₂ lb≾a = p
 
-  append : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {b b′}
+  append : ∀ {ℓ} {A} {_≾_} {m n} {b b′}
+         → (total : Total _≾_) 
          → Vector {ℓ} A _≾_ m b
          → Vector {ℓ} A _≾_ n b′
-         → Vector {ℓ} A _≾_ (m + n) (min-n {total = total} m b n b′)
-  append {m = zero} {n = zero} _ _   = []
-  append {m = zero} {n = suc n} _ bs = bs
-  append {m = suc m} {n = zero} as _ = v-shuffle₀ as
-  append {total = total} {m = suc m} {n = suc n}
+         → Vector {ℓ} A _≾_ (m + n) (min-n total m b n b′)
+  append {m = zero} {n = zero} _ _ _   = []
+  append {m = zero} {n = suc n} _ _ bs = bs
+  append {m = suc m} {n = zero} _ as _ = v-shuffle₀ as
+  append {m = suc m} {n = suc n} total 
          aas@((a ∷ as) {pa})
          bbs@((b ∷ bs) {pb}) with total a b
-  ... | inj₁ a≾b = (a ∷ (append {total = total} as bbs))
-                   {append-aux₀ {m = m} pa a≾b}
-  ... | inj₂ b≾a = (b ∷ (v-shuffle (append {total = total} aas bs)))
-                   {append-aux₁ {m = m} pb b≾a}
+  ... | inj₁ a≾b = (a ∷ (append total as bbs))
+                   {append-aux₀ {m = m} total _ _ pa a≾b}
+  ... | inj₂ b≾a = (b ∷ (v-shuffle (append total aas bs)))
+                   {append-aux₁ {m = m} total _ _ pb b≾a}
 ```
 
 Success! We managed to write append with our closed bounds Vector data type.
@@ -924,26 +934,28 @@ algorithm, but which one? After some thinking I think insertion sort might be th
 There's only one important part for insertion sort and that is the `insert` function:
 
 ```agda
-  insert : ∀ {ℓ} {A} {_≾_} {n} {total : Total _≾_} {b}
+  insert : ∀ {ℓ} {A} {_≾_} {n} {b}
+         → (total : Total _≾_)
          → (a : A)
          → Vector {ℓ} A _≾_ n b
-         → Vector {ℓ} A _≾_ (1 + n) (min {total = total} a b)
-  insert {total = total} {b = b} a v@[] with total a b
+         → Vector {ℓ} A _≾_ (1 + n) (min total a b)
+  insert {b = b} total a v@[] with total a b
   ... | inj₁ a≾b = a ∷ v
   ... | inj₂ b≾a = b ∷ v
-  insert {n = suc zero} {total = total} a ((b ∷ v@[]) {pb}) with total a b
+  insert {n = suc zero} total a ((b ∷ v@[]) {pb}) with total a b
   ... | inj₁ a≾b = (a ∷ (b ∷ v)) {a≾b}
   ... | inj₂ b≾a = (b ∷ (a ∷ v)) {b≾a}
-  insert {n = suc (suc n)} {total = total} a ((b ∷ v) {pb}) with total a b
+  insert {n = suc (suc n)} total a ((b ∷ v) {pb}) with total a b
   ... | inj₁ a≾b = (a ∷ (b ∷ v) {pb}) {a≾b}
-  ... | inj₂ b≾a = (b ∷ insert {total = total} a v)
-                   {p-aux {total = total} {n = n} b≾a pb}
+  ... | inj₂ b≾a = (b ∷ insert total a v)
+                   {p-aux {n = n} total b≾a pb}
      where
-       p-aux : ∀ {ℓ} {A : Set ℓ} {_≾_} {total : Total _≾_} {n : ℕ} {a b lb : A}
+       p-aux : ∀ {ℓ} {A : Set ℓ} {_≾_} {n : ℕ} {a b lb : A}
+             → (total : Total _≾_) 
              → a ≾ lb
              → a ≾ b
-             → a ≾ min {total = total} lb b
-       p-aux {total = total} {b = b} {lb = lb} a≾lb a≾b with total lb b
+             → a ≾ min total lb b
+       p-aux {b = b} {lb = lb} total a≾lb a≾b with total lb b
        ... | inj₁ _ = a≾lb
        ... | inj₂ _ = a≾b
 ```
@@ -960,14 +972,15 @@ in a given vector:
             → Vector {ℓ} A _≼_ (1 + n) a
             → A
   minimumBy total (a ∷ []) = a
-  minimumBy {n = suc n} total (a ∷ v) = min {total = total} a (minimumBy total v)
+  minimumBy {n = suc n} total (a ∷ v) = min total a (minimumBy total v)
 
-  insertionSort : ∀ {ℓ} {A} {_≼_ _≾_ : Rel A ℓ} {n} {total : Total _≾_} {a}
+  insertionSort : ∀ {ℓ} {A} {_≼_ _≾_ : Rel A ℓ} {n} {a}
+                → (total : Total _≾_) 
                 → (v : Vector {ℓ} A _≼_ (suc n) a)
                 → Vector {ℓ} A _≾_ (suc n) (minimumBy total v)
-  insertionSort {n = zero} {total = total} (a ∷ ([] {lb = lb})) = a ∷ ([] {lb = lb})
-  insertionSort {n = suc n} {total = total} (a ∷ vv@(_ ∷ _))    =
-    insert {total = total} a (insertionSort {total = total} vv)
+  insertionSort {n = zero} total (a ∷ ([] {lb = lb})) = a ∷ ([] {lb = lb})
+  insertionSort {n = suc n} total (a ∷ vv@(_ ∷ _))    =
+    insert total a (insertionSort total vv)
 ```
 
 Insertion sort requires that the lowerbound be the minimum value of the input vector according to a particular order.
@@ -1003,5 +1016,5 @@ All that's left is to give this a try with our example vectors:
   example4 = (6 ∷ (4 ∷ (1 ∷ [] {lb = zero})) {s≤s z≤n}) {s≤s (s≤s (s≤s (s≤s z≤n)))}
 
   sortedExample : Vector ℕ _≤_ 6 0
-  sortedExample = {! insertionSort {total = ≤-total} (append {total = ≥-total} example3 example4)!}
+  sortedExample = {! insertionSort ≤-total (append ≥-total example3 example4)!}
 ```
