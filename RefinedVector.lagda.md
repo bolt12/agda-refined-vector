@@ -131,7 +131,7 @@ where one passes a function that computes the proof for us, for an arbitrary val
        → Vector {ℓ} A _≾_ n
        -> ((b : A) → a ≾ b )
        → Vector {ℓ} A _≾_ (1 + n)
-  cons a [] f = [ a ] {f a}
+  cons a [] f    = [ a ] {f a}
   cons a [ x ] f = (a ∷ x ∷ []) {f x}
   cons a (x ∷ y ∷ v) f = (a ∷ y ∷ cons a v f) {f y}
 ```
@@ -234,11 +234,15 @@ given the result of `headₐ`, which as I explained above will be either `a ≾ 
 ```agda
   data Vectorᵐ₁ {ℓ} A _≾_ where
     []  : Vectorᵐ₁ A _≾_ 0
-    _∷_ : ∀ {n} (a : A) (v : Vectorᵐ₂ A _≾_ n) → {a≾b : proof-≾₂ {ℓ} {n} {A} {_≾_} a v} → Vectorᵐ₁ A _≾_ (1 + n)
+    _∷_ : ∀ {n} (a : A) (v : Vectorᵐ₂ A _≾_ n)
+        → {a≾b : proof-≾₂ a v}
+        → Vectorᵐ₁ A _≾_ (1 + n)
 
   data Vectorᵐ₂ {ℓ} A _≾_ where
     []  : Vectorᵐ₂ A _≾_ 0
-    _∷_ : ∀ {n} (a : A) (v : Vectorᵐ₁ A _≾_ n) → {a≾b : proof-≾₁ {ℓ} {n} {A} {_≾_} a v} → Vectorᵐ₂ A _≾_ (1 + n)
+    _∷_ : ∀ {n} (a : A) (v : Vectorᵐ₁ A _≾_ n)
+        → {a≾b : proof-≾₁ a v}
+        → Vectorᵐ₂ A _≾_ (1 + n)
 ```
 
 Finally we define the body of `proof-≾` here. Notice the overloading of the constructor operators!
@@ -362,7 +366,9 @@ So now our Vector data type and proof obligation function look much simpler.
 ```agda
   data Vector A _≾_ where
     []  : Vector A _≾_ 0
-    _∷_ : ∀ {n} (a : A) (v : Vector A _≾_ n) → {a≾b : proof-≾ a v} → Vector A _≾_ (1 + n)
+    _∷_ : ∀ {n} (a : A) (v : Vector A _≾_ n)
+        → {a≾b : proof-≾ a v}
+        → Vector A _≾_ (1 + n)
 
   proof-≾ a [] = ⊤
   proof-≾ {_≾_ = _≾_} a (b ∷ _) = a ≾ b
@@ -441,24 +447,26 @@ Here we define some auxiliary number shuffling functions:
        → proof-≾ a (v-shuffle₁ v)
 
   v-shuffle₁ {_} {zero} ((a ∷ []) {p}) = a ∷ []
-  v-shuffle₁ {_} {suc n} ((a ∷ v) {p}) = (a ∷ v-shuffle₁ {_} {n} v) {proof-≾-shuffle₁ a v p}
+  v-shuffle₁ {_} {suc n} ((a ∷ v) {p}) =
+    (a ∷ v-shuffle₁ {_} {n} v) {proof-≾-shuffle₁ a v p}
 
   proof-≾-shuffle₁ {_} {zero} a (b ∷ []) p = p
   proof-≾-shuffle₁ {_} {suc n} a (b ∷ v) p = p
 
   v-shuffle : ∀ {ℓ} {m n} {A} {_≾_}
-      → Vector {ℓ} A _≾_ (1 + (m + n))
-      → Vector {ℓ} A _≾_ (m + (1 + n))
+            → Vector {ℓ} A _≾_ (1 + (m + n))
+            → Vector {ℓ} A _≾_ (m + (1 + n))
   proof-≾-shuffle : ∀ {ℓ} {m n} {A} {_≾_}
-       → (a : A)
-       → (v : Vector {ℓ} A _≾_ (1 + (m + n)))
-       → proof-≾ a v
-       → proof-≾ a (v-shuffle {ℓ} {m} {n} v)
+                  → (a : A)
+                  → (v : Vector {ℓ} A _≾_ (1 + (m + n)))
+                  → proof-≾ a v
+                  → proof-≾ a (v-shuffle {ℓ} {m} v)
 
-  v-shuffle {_} {zero} ((a ∷ v) {p}) = (a ∷ v) {p}
-  v-shuffle {ℓ} {suc m} ((a ∷ v) {p}) = (a ∷ v-shuffle v) {proof-≾-shuffle {ℓ} {m} a v p}
+  v-shuffle {_} {zero} ((a ∷ v) {p})  = (a ∷ v) {p}
+  v-shuffle {ℓ} {suc m} ((a ∷ v) {p}) =
+    (a ∷ v-shuffle v) {proof-≾-shuffle {ℓ} {m} a v p}
 
-  proof-≾-shuffle {_} {zero} _ (_ ∷ _) p = p
+  proof-≾-shuffle {_} {zero} _ (_ ∷ _) p  = p
   proof-≾-shuffle {_} {suc m} _ (_ ∷ _) p = p
 ```
 
@@ -517,7 +525,8 @@ module Attempt4 where
   open import Data.Nat.Properties using (+-comm; +-identityʳ)
 ```
 
-Thanks to my friend Sean Seefried, he found the following [paper](http://www.e-pig.org/downloads/ydtm.pdf).
+Thanks to my friend Sean Seefried, he found the following
+[paper](http://www.e-pig.org/downloads/ydtm.pdf).
 
 Section 5.2 from the paper is exactly what I am after. And from reading it they offer
 a great deal of insight on how to think about problems like these.
@@ -533,7 +542,8 @@ This lower bound means that the Vector shall only contain values greater or equa
 it.
 
 ```agda
-  data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) (t : Total _≾_) : ℕ → A → Set ℓ where
+  data Vector {ℓ : Level} (A : Set ℓ) (_≾_ : Rel A ℓ) (t : Total _≾_)
+       : ℕ → A → Set ℓ where
 ```
 The empty vector case does not care what the lower bound is
 
@@ -545,7 +555,11 @@ In cons case, the head must exceed the prescribed lower bound and bound the tail
 This means `lb` is an open bound.
 
 ```agda
-    _∷_ : {lb : A} {n : ℕ} → (a : A) → {lb ≾ a} → Vector A _≾_ t n a → Vector A _≾_ t (suc n) lb
+    _∷_ : {lb : A} {n : ℕ}
+        → (a : A)
+        → {lb ≾ a}
+        → Vector A _≾_ t n a
+        → Vector A _≾_ t (suc n) lb
 ```
 
 Some examples:
@@ -572,24 +586,29 @@ to get away with being a little more general, but we will let Agda be the judge 
 Here's the definition of append:
 
 ```agda
-  head : ∀ {ℓ} {A} {b : A} {n : ℕ} {_≾_} {total : Total _≾_}→ Vector {ℓ} A _≾_ total (suc n) b → A
+  head : ∀ {ℓ} {A} {b : A} {n : ℕ} {_≾_} {total : Total _≾_}
+       → Vector {ℓ} A _≾_ total (suc n) b
+       → A
   head (a ∷ _) = a
 
   suc-m+n≡m+suc-n : ∀ (m n : ℕ) → (suc m + n) ≡ (m + suc n)
   suc-m+n≡m+suc-n m n rewrite +-comm m n rewrite +-comm (suc n) m = refl
 
-  vec2vec : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_} {b : A} {m n : ℕ} → Vector A _≾_ total (suc m + n) b → Vector A _≾_ total (m + suc n) b
-  vec2vec {A = A} {_≾_} {total} {b} {m} {n} v rewrite cong (λ n → Vector A _≾_ total n b) (suc-m+n≡m+suc-n m n) = v
+  vec2vec : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_} {b : A} {m n : ℕ}
+          → Vector A _≾_ total (suc m + n) b
+          → Vector A _≾_ total (m + suc n) b
+  vec2vec {A = A} {_≾_} {total} {b} {m} {n} v
+    rewrite cong (λ n → Vector A _≾_ total n b) (suc-m+n≡m+suc-n m n) = v
 
   append : ∀ {ℓ} {A} {m n : ℕ} {_≾_} {total : Total _≾_}→ {b : A}
-        → Vector {ℓ} A _≾_ total m b
-        → Vector {ℓ} A _≾_ total n b
-        → Vector {ℓ} A _≾_ total (m + n) b
+         → Vector {ℓ} A _≾_ total m b
+         → Vector {ℓ} A _≾_ total n b
+         → Vector {ℓ} A _≾_ total (m + n) b
   append {m = zero} _ bs = bs
   append {m = m} {zero} as _ rewrite +-identityʳ m = as
-  append {A = A} {_≾_ = _≾_} {total = total} {b}  (_∷_ x {b≾x} xs ) (_∷_ y {b≾y} ys) with total x y
+  append {total = total} (_∷_ x {b≾x} xs ) (_∷_ y {b≾y} ys) with total x y
   ... | inj₁ x≾y = _∷_ x {b≾x} (append {b = x}  xs (_∷_ y {x≾y} ys))
-  ... | inj₂ y≾x = _∷_ y {b≾y} (vec2vec  (append {b = y} (_∷_ x {y≾x} xs) ys))
+  ... | inj₂ y≾x = _∷_ y {b≾y} (vec2vec (append {b = y} (_∷_ x {y≾x} xs) ys))
 ```
 
 If I C-c C-n inside this hole I get the correct result!
@@ -659,7 +678,7 @@ this trick will work out nicely.
     _∷_ : {lb : A} {n : ℕ}
         → (a : A)
         → Vector A _≾_ n lb
-        → {proof-≾ {ℓ} {A} {_≾_ = _≾_} n a lb}
+        → {proof-≾ {_≾_ = _≾_} n a lb}
         → Vector A _≾_ (suc n) a
 ```
 
@@ -695,7 +714,7 @@ the minimum `lowerbound` becomes that of the non-empty list.
   min {total = total} a b with total a b
   ... | inj₁ a≾b = a
   ... | inj₂ b≾a = b
-  
+
   min-n : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {total : Total _≾_}
       → ℕ → A
       → ℕ → A
@@ -719,26 +738,27 @@ Vector auxiliary lemmas to shuffle around length index
   v-shuffle₀ {n = suc n} ((a ∷ as) {p}) =
     (a ∷ (v-shuffle₀ as)) {proof-≾-shuffle₀ {n = n} p}
 
-  proof-≾-shuffle₀ {n = zero} _ = tt
+  proof-≾-shuffle₀ {n = zero} _  = tt
   proof-≾-shuffle₀ {n = suc _} p = p
 
   v-shuffle₀⁻¹ : ∀ {ℓ} {A} {_≾_} {n} {b}
-             → Vector {ℓ} A _≾_ (n + 0) b
-             → Vector {ℓ} A _≾_ n b
+               → Vector {ℓ} A _≾_ (n + 0) b
+               → Vector {ℓ} A _≾_ n b
   proof-≾-shuffle₀⁻¹ : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {n} {a b}
-                   → proof-≾ {ℓ} {A} {_≾_} (n + 0) a b
-                   → proof-≾ {ℓ} {A} {_≾_} n a b
+                     → proof-≾ {ℓ} {A} {_≾_} (n + 0) a b
+                     → proof-≾ {ℓ} {A} {_≾_} n a b
 
   v-shuffle₀⁻¹ {n = zero} v = v
   v-shuffle₀⁻¹ {n = suc n} ((a ∷ v) {p}) =
     (a ∷ v-shuffle₀⁻¹ v) {proof-≾-shuffle₀⁻¹ {n = n} p}
 
-  proof-≾-shuffle₀⁻¹ {n = zero} p = tt
+  proof-≾-shuffle₀⁻¹ {n = zero} p  = tt
   proof-≾-shuffle₀⁻¹ {n = suc n} p = p
 
   proof-≾-shuffle₀-id : ∀ {ℓ} {A : Set ℓ} {_≾_ : Rel A ℓ} {n} {a b}
                 → (p : proof-≾ {ℓ} {A} {_≾_} (n + 0) a b)
-                → proof-≾-shuffle₀ {ℓ} {A} {_≾_} {n} (proof-≾-shuffle₀⁻¹ {ℓ} {A} {_≾_} {n} p) ≡ p
+                → proof-≾-shuffle₀ {ℓ} {A} {_≾_} {n}
+                    (proof-≾-shuffle₀⁻¹ {ℓ} {A} {_≾_} {n} p) ≡ p
   proof-≾-shuffle₀-id {n = zero} tt = refl
   proof-≾-shuffle₀-id {n = suc n} p = refl
 
@@ -757,7 +777,8 @@ Vector auxiliary lemmas to shuffle around length index
   v-shuffle₀-id {n = zero} [] = refl
   v-shuffle₀-id {ℓ} {A} {_≾_} {n = suc n} (_∷_ {lb = lb} b bs {p} ) =
     begin
-      ((b ∷ v-shuffle₀ (v-shuffle₀⁻¹ bs)) {proof-≾-shuffle₀ {n = n} (proof-≾-shuffle₀⁻¹ {n = n} p)})
+      ((b ∷ v-shuffle₀ (v-shuffle₀⁻¹ bs))
+        {proof-≾-shuffle₀ {n = n} (proof-≾-shuffle₀⁻¹ {n = n} p)})
       ≡⟨ v-cong b bs p ⟩
       ((b ∷ bs) {p})
     ∎
@@ -770,11 +791,11 @@ Vector auxiliary lemmas to shuffle around length index
                   → proof-≾ {ℓ} {A} {_≾_} (1 + (m + n)) a b
                   → proof-≾ {ℓ} {A} {_≾_} (m + (1 + n)) a b
 
-  v-shuffle {m = zero} ((a ∷ as) {p}) = (a ∷ as) {p}
+  v-shuffle {m = zero} ((a ∷ as) {p})  = (a ∷ as) {p}
   v-shuffle {m = suc m} ((a ∷ as) {p}) =
     (a ∷ (v-shuffle {m = m} as)) {proof-≾-shuffle {m = m} p}
 
-  proof-≾-shuffle {m = zero} p = p
+  proof-≾-shuffle {m = zero} p  = p
   proof-≾-shuffle {m = suc _} p = p
 
   v-shuffle⁻¹ : ∀ {ℓ} {A} {_≾_} {m n} {b}
@@ -784,46 +805,53 @@ Vector auxiliary lemmas to shuffle around length index
                     → proof-≾ {ℓ} {A} {_≾_} (m + (1 + n)) a b
                     → proof-≾ {ℓ} {A} {_≾_} (1 + (m + n)) a b
 
-  v-shuffle⁻¹ {m = zero} as = as
-  v-shuffle⁻¹ {m = suc m} ((a ∷ as) {p}) = (a ∷ v-shuffle⁻¹ as) {proof-≾-shuffle⁻¹ {m = m} p}
+  v-shuffle⁻¹ {m = zero} as              = as
+  v-shuffle⁻¹ {m = suc m} ((a ∷ as) {p}) =
+    (a ∷ v-shuffle⁻¹ as) {proof-≾-shuffle⁻¹ {m = m} p}
 
-  proof-≾-shuffle⁻¹ {m = zero} p = p
+  proof-≾-shuffle⁻¹ {m = zero} p  = p
   proof-≾-shuffle⁻¹ {m = suc m} p = p
 
   append-aux₀ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lb : A}
-         → proof-≾ {ℓ} {A} {_≾_} m a lb
-         → a ≾ b
-         → proof-≾ {ℓ} {A} {_≾_} (m + suc n) a (min-n {total = total} m lb (suc n) b)
+              → proof-≾ {ℓ} {A} {_≾_} m a lb
+              → a ≾ b
+              → proof-≾ {ℓ} {A} {_≾_} (m + suc n) a
+                                      (min-n {total = total} m lb (suc n) b)
   append-aux₀ {m = zero} _ p′ = p′
   append-aux₀ {total = total} {m = suc m} {b = b} {lb = lb} p p′ with total lb b
   ... | inj₁ lb≾b = p
   ... | inj₂ b≾lb = p′
 
   append-aux₁ : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {a b lb : A}
-         → proof-≾ {ℓ} {A} {_≾_} n b lb
-         → b ≾ a
-         → proof-≾ {ℓ} {A} {_≾_} (m + suc n) b (min-n {total = total} (suc m) a n lb)
-  append-aux₁ {m = zero} {n = zero} p p′ = p′
+              → proof-≾ {ℓ} {A} {_≾_} n b lb
+              → b ≾ a
+              → proof-≾ {ℓ} {A} {_≾_} (m + suc n) b
+                                      (min-n {total = total} (suc m) a n lb)
+  append-aux₁ {m = zero} {n = zero} p p′  = p′
   append-aux₁ {m = suc m} {n = zero} p p′ = p′
-  append-aux₁ {total = total} {m = zero} {n = suc n} {a = a} {lb = lb} p p′ with total a lb
-  ... | inj₁ _ = p′
-  ... | inj₂ _ = p
-  append-aux₁ {total = total} {m = suc m} {n = suc n} {a = a} {lb = lb} p p′ with total a lb
-  ... | inj₁ _ = p′
-  ... | inj₂ _ = p
+  append-aux₁ {total = total} {m = zero} {n = suc n} {a = a} {lb = lb} p p′
+    with total a lb
+  ... | inj₁ a≾lb = p′
+  ... | inj₂ lb≾a = p
+  append-aux₁ {total = total} {m = suc m} {n = suc n} {a = a} {lb = lb} p p′
+    with total a lb
+  ... | inj₁ a≾lb = p′
+  ... | inj₂ lb≾a = p
 
   append : ∀ {ℓ} {A} {_≾_} {total : Total _≾_} {m n} {b b′}
-        → Vector {ℓ} A _≾_ m b
-        → Vector {ℓ} A _≾_ n b′
-        → Vector {ℓ} A _≾_ (m + n) (min-n {total = total} m b n b′)
-  append {m = zero} {n = zero} _ _ = []
+         → Vector {ℓ} A _≾_ m b
+         → Vector {ℓ} A _≾_ n b′
+         → Vector {ℓ} A _≾_ (m + n) (min-n {total = total} m b n b′)
+  append {m = zero} {n = zero} _ _   = []
   append {m = zero} {n = suc n} _ bs = bs
   append {m = suc m} {n = zero} as _ = v-shuffle₀ as
   append {total = total} {m = suc m} {n = suc n}
-        aas@((a ∷ as) {pa})
-        bbs@((b ∷ bs) {pb}) with total a b
-  ... | inj₁ a≾b = (a ∷ (append {total = total} as bbs)) {append-aux₀ {m = m} pa a≾b}
-  ... | inj₂ b≾a = (b ∷ (v-shuffle (append {total = total} aas bs))) {append-aux₁ {m = m} pb b≾a}
+         aas@((a ∷ as) {pa})
+         bbs@((b ∷ bs) {pb}) with total a b
+  ... | inj₁ a≾b = (a ∷ (append {total = total} as bbs))
+                   {append-aux₀ {m = m} pa a≾b}
+  ... | inj₂ b≾a = (b ∷ (v-shuffle (append {total = total} aas bs)))
+                   {append-aux₁ {m = m} pb b≾a}
 ```
 
 Success! We managed to write append with our closed bounds Vector data type.
@@ -864,7 +892,7 @@ the lower bound:
        → (m : ℕ)
        → Vector {ℓ} A _≾_ n b
        → Vector {ℓ} A _≾_ (m ⊓ n) b
-  take zero _ = []
+  take zero _     = []
   take (suc _) [] = []
   take (suc m) ((a ∷ as) {p}) with take m as
   ... | res = (a ∷ res) {p-aux {m = m} p}
@@ -893,7 +921,7 @@ array in half, require invariants that are not very easily or naturally expressa
 on our refined vector data type. So, maybe this is a hint that we should pick a different
 algorithm, but which one? After some thinking I think insertion sort might be the most natural.
 
-There's only one important part for insertion sort and that is the `insert` function: 
+There's only one important part for insertion sort and that is the `insert` function:
 
 ```agda
   insert : ∀ {ℓ} {A} {_≾_} {n} {total : Total _≾_} {b}
@@ -908,7 +936,8 @@ There's only one important part for insertion sort and that is the `insert` func
   ... | inj₂ b≾a = (b ∷ (a ∷ v)) {b≾a}
   insert {n = suc (suc n)} {total = total} a ((b ∷ v) {pb}) with total a b
   ... | inj₁ a≾b = (a ∷ (b ∷ v) {pb}) {a≾b}
-  ... | inj₂ b≾a = (b ∷ insert {total = total} a v) {p-aux {total = total} {n = n} b≾a pb}
+  ... | inj₂ b≾a = (b ∷ insert {total = total} a v)
+                   {p-aux {total = total} {n = n} b≾a pb}
      where
        p-aux : ∀ {ℓ} {A : Set ℓ} {_≾_} {total : Total _≾_} {n : ℕ} {a b lb : A}
              → a ≾ lb
@@ -937,7 +966,8 @@ in a given vector:
                 → (v : Vector {ℓ} A _≼_ (suc n) a)
                 → Vector {ℓ} A _≾_ (suc n) (minimumBy total v)
   insertionSort {n = zero} {total = total} (a ∷ ([] {lb = lb})) = a ∷ ([] {lb = lb})
-  insertionSort {n = suc n} {total = total} (a ∷ vv@(_ ∷ _)) = insert {total = total} a (insertionSort {total = total} vv)
+  insertionSort {n = suc n} {total = total} (a ∷ vv@(_ ∷ _))    =
+    insert {total = total} a (insertionSort {total = total} vv)
 ```
 
 Insertion sort requires that the lowerbound be the minimum value of the input vector according to a particular order.
