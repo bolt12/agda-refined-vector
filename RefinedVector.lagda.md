@@ -1018,3 +1018,36 @@ All that's left is to give this a try with our example vectors:
   sortedExample : Vector ℕ _≤_ 6 0
   sortedExample = {! insertionSort ≤-total (append ≥-total example3 example4)!}
 ```
+
+## Final thoughts
+
+Quicksort is believed to be a algorithm naturally done on trees, and it is easy to see why that might make sense. Although
+originally it was invented to be an array sorting algorithm, its recursive, divide-and-conquer nature makes us think of trees.
+And indeed if one codes the quicksort algorithm against an array like data structure vs a tree like data structure, its code is
+much more simpler, elegant and better amenable to formal reasoning than the its array counterpart. 
+
+Research done by Conal Elliott shows that there are algorithms that seem to be tied to certain data representations (or vice-versa),
+and we saw a glimpse of those conclusions during this journey: the quicksort algorithm, although we know it to exist, correct and
+that it is possible to write such logic against an array like structure, was quite a challenge for us to implement it with our refined
+vector. Mainly due to the fact that Agda would make certain proof obligations explicit and those would be either reasonable (in the sense
+that it was easy to understand where they would come from) and sensible (in the sense it would be easy enough to provide such proofs), depending
+on the actual representation in use. It took us 6 attempts (and a change of heart regarding the sorting algorithm) for us to refine the representation
+to the point that the proof obligations one would get were both reasonable and sensible.
+
+In retrospective most of the refinement performed on the array data type was to make it so important information necessary for proving the algorithm's
+invariants was explicit and available for Agda to work with. Very much like how one would prove imperative code using Hoare Logic.
+Agda is powerful enough to allow us to cheat and provide that important information upfront and is intelligent enough to make good use of it.
+However I think much deeper insights would come from picking just the right data representation that both wouldn't require us to make that information explicit,
+and would still allow us to write the algorithm in a simple, elegant, machine-checked manner.
+
+For instance, how would we go about refining our vector data type in order to be able to write a quicksort algorithm? My hunch is that we'd need
+a new index for the upper bound, so that everytime we'd split the vector we could say that for the first half, the lower bound is preserved; for
+the second half the upper bound is preserved and that they share the same value for the upper bound and lower bound, respectively. This leads us to
+another question, should the bounds be closed or opened, they both have their benefits; maybe having 3 indexes: lower, middle, upper bounds would be
+a better approach. As you can see this is already much more complex, hence less sensible and reasonable. If we had picked a tree instead of a vector,
+one wouldn't need to care so hard about such things because the structure itself would make that information naturally available and it would turn
+out to be a very simple implementation.
+
+I hope I was able to get my point and final thoughts across these paragraphs. Just one final thought: What would be the natural structure for insertionSort? 
+What does natural mean? It seems that an array like structure gave a pretty straightforward implementation + proof, but would there be a structure
+that wouldn't require any of that and still provide me with simple and elegant correctness? How can we begin to even reason about such a question?
