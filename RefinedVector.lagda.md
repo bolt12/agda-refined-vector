@@ -1046,8 +1046,8 @@ the second half the upper bound is preserved and that they share the same value 
 another question, should the bounds be closed or opened, they both have their benefits; maybe having 3 indexes: lower, middle, upper bounds would be
 a better approach. As you can see this is already much more complex, hence less sensible and reasonable. If we had picked a tree instead of a vector,
 one wouldn't need to care so hard about such things because the structure itself would make that information naturally available and it would turn
-out to be a very simple implementation.
+out to be a very simple implementation and proof!
 
-I hope I was able to get my point and final thoughts across these paragraphs. Just one final thought: What would be the natural structure for insertionSort? 
+I hope I was able to get my point and final thoughts across these paragraphs. Just one final thought: What would be the natural structure for `insertionSort`? 
 What does natural mean? It seems that an array like structure gave a pretty straightforward implementation + proof, but would there be a structure
 that wouldn't require any of that and still provide me with simple and elegant correctness? How can we begin to even reason about such a question?
