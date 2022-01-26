@@ -1023,7 +1023,7 @@ All that's left is to give this a try with our example vectors:
 
 Quicksort is believed to be a algorithm naturally done on trees, and it is easy to see why that might make sense. Although
 originally it was invented to be an array sorting algorithm, its recursive, divide-and-conquer nature makes us think of trees.
-And indeed if one codes the quicksort algorithm against an array like data structure vs a tree like data structure, its code is
+And indeed if one codes the quicksort algorithm against a tree like data structure vs an array like data structure, its code is
 much more simpler, elegant and better amenable to formal reasoning than the its array counterpart. 
 
 Research done by Conal Elliott shows that there are algorithms that seem to be tied to certain data representations (or vice-versa),
